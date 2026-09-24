@@ -29,7 +29,7 @@ Stored receipt → wallet-free live UI and explorer proof
 
 - `contracts/faultline.py` owns charter state, agent authorization, attempt ordering, edge checks, validator comparison, lifecycle transitions, and DEMO accounting. It stores identifiers, bounded policy text, URLs, hashes, normalized decisions, assessment basis, tampered-source details, and receipts; evidence bodies stay off-chain.
 - `public/evidence/` contains synthetic reviewer fixtures. Each charter, artifact, and evidence page identifies its charter and attempt and states that it is not a real customer or production incident.
-- `scripts/` provisions a Studio Next-only deployer and three demonstration agent keys in the gitignored `.env`, deploys and seeds in sequence, waits for transaction finality and successful execution, and writes deployment/proof files only after read-back verification.
+- `scripts/` provisions a Studio Net-only deployer and three demonstration agent keys in the gitignored `.env`, deploys and seeds in sequence, waits for transaction finality and successful execution, and writes deployment/proof files only after read-back verification.
 - `app/`, `components/`, and `lib/` render the current contract state. Public reads do not require a wallet. Wallet interaction is required only to send transactions.
 - `deployments/` holds generated, machine-readable deployment and proof records. Missing or unreadable deployment data is shown as unavailable; it is never replaced with invented live state.
 

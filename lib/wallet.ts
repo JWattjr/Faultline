@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { createTransactionKit, type PolicyQuote, type SubmitInput, type TrackedStatus, type TransactionKit } from "@genlayer/transaction-kit";
-import { studioDevnet } from "genlayer-js/chains";
+import { createClient } from "genlayer-js";
+import { studionet } from "genlayer-js/chains";
+import { TransactionStatus, type GenLayerTransaction } from "genlayer-js/types";
 import { CHAIN_ID, CONTRACT_ADDRESS, RPC_URL } from "./contract";
+import { isSuccessfulExecution, transactionExecutionResultName, transactionStatusName, type TransactionStatusLike } from "./transaction-status";
 
 type Eip1193 = {
   request(args: { method: string; params?: unknown[] }): Promise<unknown>;
@@ -15,15 +17,20 @@ declare global {
   interface Window { ethereum?: Eip1193 }
 }
 
-export type PreparedWrite = { quote: PolicyQuote; input: SubmitInput };
-export type WriteProgress = TrackedStatus & { genlayerTxId: `0x${string}` };
+export type PreparedWrite = { method: string; args: unknown[] };
+export type WriteProgress = {
+  genlayerTxId: `0x${string}`;
+  phase: "submitted" | "finalized";
+  statusName?: string;
+  executionResultName?: string;
+  successful?: boolean;
+};
 export type StudioWallet = {
   available: boolean;
   address?: `0x${string}`;
   chainId?: number;
   connecting: boolean;
   error?: string;
-  kit?: TransactionKit;
   connect: () => Promise<void>;
   switchNetwork: () => Promise<void>;
   requestTestFunds: () => Promise<string>;
@@ -38,10 +45,10 @@ const getServerMountState = () => false;
 const CHAIN_ID_HEX = `0x${CHAIN_ID.toString(16)}`;
 const NETWORK = {
   chainId: CHAIN_ID_HEX,
-  chainName: "GenLayer Studio Next",
+  chainName: "GenLayer Studio Net",
   rpcUrls: [RPC_URL],
   nativeCurrency: { name: "GEN Token", symbol: "GEN", decimals: 18 },
-  blockExplorerUrls: ["https://explorer-studio-dev.genlayer.com"],
+  blockExplorerUrls: ["https://explorer-studio.genlayer.com"],
 };
 
 function errorMessage(error: unknown): string {
@@ -91,7 +98,7 @@ export function useStudioWallet(): StudioWallet {
   const connect = useCallback(async () => {
     const provider = window.ethereum;
     if (!provider) {
-      setError("No injected wallet was found. Install an EIP-1193 wallet to sign Studio Next transactions.");
+      setError("No injected wallet was found. Install an EIP-1193 wallet to sign Studio Net transactions.");
       return;
     }
     setConnecting(true);
@@ -109,9 +116,9 @@ export function useStudioWallet(): StudioWallet {
     }
   }, []);
 
-  const kit = useMemo(() => {
+  const client = useMemo(() => {
     if (!mounted || !address || chainId !== CHAIN_ID || !window.ethereum) return undefined;
-    return createTransactionKit({ chain: studioDevnet, provider: window.ethereum, account: address });
+    return createClient({ chain: studionet, endpoint: RPC_URL, provider: window.ethereum, account: address });
   }, [address, chainId, mounted]);
 
   const requestTestFunds = useCallback(async () => {
@@ -121,7 +128,7 @@ export function useStudioWallet(): StudioWallet {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method: "sim_fundAccount", params: [address, 10 * 1e18] }),
     });
-    if (!faucet.ok) throw new Error(`Studio Next faucet returned HTTP ${faucet.status}`);
+    if (!faucet.ok) throw new Error(`Studio Net faucet returned HTTP ${faucet.status}`);
     const faucetBody = await faucet.json() as { result?: unknown; error?: { message?: string } };
     if (faucetBody.error?.message) throw new Error(faucetBody.error.message);
     const balanceResponse = await fetch(RPC_URL, {
@@ -135,26 +142,35 @@ export function useStudioWallet(): StudioWallet {
   }, [address]);
 
   const prepareWrite = useCallback(async (method: string, args: unknown[]): Promise<PreparedWrite> => {
-    if (!kit) throw new Error("Connect a wallet on Studio Next before preparing a transaction.");
+    if (!client) throw new Error("Connect a wallet on Studio Net before preparing a transaction.");
     if (!/^0x[\da-fA-F]{40}$/.test(CONTRACT_ADDRESS)) throw new Error("A deployed Faultline address is not configured.");
-    const input: SubmitInput = { kind: "write", address: CONTRACT_ADDRESS as `0x${string}`, method, args };
-    const quote = await kit.estimate({ preset: "standard" }, input);
-    if (quote.verification.status === "mismatch") throw new Error("Studio Next fee settings changed during the quote. Prepare a fresh transaction before signing.");
-    return { quote, input };
-  }, [kit]);
+    return { method, args };
+  }, [client]);
 
   const signWrite = useCallback(async (prepared: PreparedWrite, onUpdate: (progress: WriteProgress) => void): Promise<WriteProgress> => {
-    if (!kit) throw new Error("Connect a wallet on Studio Next before signing.");
-    const submitted = await kit.submit(prepared.quote, prepared.input);
-    const final = await kit.track(submitted.genlayerTxId, (progress) => {
-      onUpdate({ ...progress, genlayerTxId: submitted.genlayerTxId });
-    }, { until: "finalized" });
-    const result: WriteProgress = { ...final, genlayerTxId: submitted.genlayerTxId };
+    if (!client) throw new Error("Connect a wallet on Studio Net before signing.");
+    const hash = await client.writeContract({
+      address: CONTRACT_ADDRESS as `0x${string}`,
+      functionName: prepared.method,
+      args: prepared.args as never,
+      value: 0n,
+    }) as `0x${string}`;
+    if (!/^0x[\da-fA-F]{64}$/.test(hash)) throw new Error("Studio Net did not return a valid transaction hash.");
+    onUpdate({ genlayerTxId: hash, phase: "submitted", statusName: "PENDING" });
+    const final = await client.waitForTransactionReceipt({ hash: hash as never, status: TransactionStatus.FINALIZED, interval: 10_000, retries: 120 }) as GenLayerTransaction;
+    const receipt = final as unknown as TransactionStatusLike;
+    const result: WriteProgress = {
+      genlayerTxId: hash,
+      phase: "finalized",
+      statusName: transactionStatusName(receipt),
+      executionResultName: transactionExecutionResultName(receipt),
+      successful: isSuccessfulExecution(receipt),
+    };
     onUpdate(result);
-    if (result.phase !== "finalized") throw new Error(`Transaction stopped in ${result.phase}; no final state change is shown.`);
+    if (result.statusName !== "FINALIZED") throw new Error(`Transaction did not finalize (status ${result.statusName}); no final state change is shown.`);
     if (result.successful !== true) throw new Error(`Transaction finalized with execution ${result.executionResultName ?? "unknown"}; the state change failed.`);
     return result;
-  }, [kit]);
+  }, [client]);
 
   return {
     available: mounted && typeof window !== "undefined" && Boolean(window.ethereum),
@@ -162,7 +178,6 @@ export function useStudioWallet(): StudioWallet {
     chainId,
     connecting,
     error,
-    kit,
     connect,
     switchNetwork: async () => {
       try { await switchNetwork(); } catch (switchError) { setError(errorMessage(switchError)); throw switchError; }

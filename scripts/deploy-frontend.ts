@@ -80,8 +80,10 @@ async function main(): Promise<void> {
     if (result.status !== 0) throw new Error(`Vercel deployment failed with exit code ${result.status}.`);
     const deploymentUrl = output.match(/"deployment"\s*:\s*\{[\s\S]*?"url"\s*:\s*"(https?:\/\/[^\"]+)"/i)?.[1];
     const productionLine = output.match(/^\s*Production\s*:?\s*(https?:\/\/[^\s]+)/im)?.[1];
+    const publicAlias = output.match(/\bAliased\s*:?\s*(https?:\/\/[^\s]+)/i)?.[1];
     const vercelHosts = [...output.matchAll(/https?:\/\/[a-z0-9][a-z0-9-]*\.vercel\.app/gi)].map((match) => match[0]);
-    const productionUrl = (deploymentUrl ?? productionLine ?? vercelHosts[0])?.replace(/[),]+$/, "");
+    // Unique Vercel deployment URLs may require SSO; validate the public production alias when CLI provides it.
+    const productionUrl = (publicAlias ?? productionLine ?? deploymentUrl ?? vercelHosts[0])?.replace(/[),]+$/, "");
     if (!productionUrl) throw new Error("Vercel reported success but did not return a production URL; inspect the output above before proceeding.");
     const evidenceOrigin = deployment?.fixtureBaseUrl?.trim() || new URL(productionUrl).origin;
     const evidenceUrl = new URL(evidenceOrigin);

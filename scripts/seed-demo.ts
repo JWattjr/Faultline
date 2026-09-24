@@ -1,5 +1,5 @@
 import { createAccount, createClient } from "genlayer-js";
-import { studioDevnet } from "genlayer-js/chains";
+import { studionet } from "genlayer-js/chains";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import {
@@ -139,7 +139,7 @@ export async function seedCase(deployment: Deployment, item: FixtureCase, reques
 
 export async function main(): Promise<void> {
   const deployment = readJson<Deployment>(DEPLOYMENT_FILE);
-  assert(deployment?.network === "studio-next" && deployment.chainId === CHAIN_ID, `Run npm run deploy first; a valid Studio Next deployment is required at ${DEPLOYMENT_FILE}.`);
+  assert(deployment?.network === "studionet" && deployment.chainId === CHAIN_ID, `Run npm run deploy first; a valid Studio Net deployment is required at ${DEPLOYMENT_FILE}.`);
   assert(fixtureBaseUrl() === deployment.fixtureBaseUrl, "FIXTURE_BASE_URL differs from the deployment record; redeploy or restore the original fixture host.");
   const manifest = await loadFixtureManifest();
   await checkNetwork();
@@ -147,9 +147,9 @@ export async function main(): Promise<void> {
   console.log("All hosted synthetic evidence pages returned HTTPS 200; only FLT-TAMPER-001 has its declared post-submission hash mismatch.");
 
   const requester = createAccount(loadOrCreateKey("DEPLOYER_PRIVATE_KEY"));
-  const requesterClient = createClient({ chain: studioDevnet, endpoint: deployment.rpcUrl, account: requester });
-  const agentClients = AGENT_KEYS.map((name) => createClient({ chain: studioDevnet, endpoint: deployment.rpcUrl, account: createAccount(loadOrCreateKey(name)) }));
-  const reader = createClient({ chain: studioDevnet, endpoint: deployment.rpcUrl });
+  const requesterClient = createClient({ chain: studionet, endpoint: deployment.rpcUrl, account: requester });
+  const agentClients = AGENT_KEYS.map((name) => createClient({ chain: studionet, endpoint: deployment.rpcUrl, account: createAccount(loadOrCreateKey(name)) }));
+  const reader = createClient({ chain: studionet, endpoint: deployment.rpcUrl });
   for (const client of [requesterClient, ...agentClients]) {
     const address = client.account?.address;
     assert(address, "Could not derive an account for the demo flow.");
@@ -158,10 +158,10 @@ export async function main(): Promise<void> {
 
   const cases: Record<string, IntegrationProofCase> = {};
   for (const item of manifest.cases) cases[item.charter_id] = await seedCase(deployment, item, requesterClient, agentClients, reader);
-  const proof = { network: "studio-next", chainId: CHAIN_ID, contractAddress: deployment.contractAddress, generatedAt: new Date().toISOString(), verified: true, cases };
+  const proof = { network: "studionet", chainId: CHAIN_ID, contractAddress: deployment.contractAddress, generatedAt: new Date().toISOString(), verified: true, cases };
   writeJson(PROOF_FILE, proof);
   writeJson(PUBLIC_PROOF_FILE, proof);
-  console.log(`\nAll four flows were finalized, successful, and read back from Studio Next. Proof records: ${PROOF_FILE}`);
+  console.log(`\nAll four flows were finalized, successful, and read back from Studio Net. Proof records: ${PROOF_FILE}`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

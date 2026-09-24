@@ -2,7 +2,7 @@
 
 Keep each reviewer fixture identified as expected/synthetic until its corresponding on-chain proof is published. Do not present a local fixture preview as a validator transaction.
 
-1. Open the live page. Point out the Studio Next chain, deployed contract, selected charter, attempt, and `DEMO accounting` label.
+1. Open the [live page](https://faultline-sandy.vercel.app). Point out the Studio Net chain, deployed contract, selected charter, attempt, and `DEMO accounting` label.
 2. Switch among **Accepted**, **Remediation**, **Breached**, and **Evidence changed after submission** from the case selector.
 3. Follow the handoff hashes from one agent output into the next agent's previous-output field. Show the three green edge checks: hash chain, submission time, and evidence-base URL.
 4. In **Evidence changed after submission**, show the separate `EVIDENCE_TAMPERED` assessment basis and the full submitted/fetched hash pair. The contract chooses `BREACHED` deterministically; Research is `PRIMARY`, while unchanged agents remain `CLEAR`.

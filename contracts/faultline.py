@@ -1,4 +1,4 @@
-# { "Depends": "py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng" }
+# { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """Faultline: comparative, clause-based adjudication for a fixed agent pipeline."""
 
 import hashlib
@@ -7,7 +7,7 @@ import json
 import re
 from datetime import datetime, timezone
 
-import genlayer as gl
+from genlayer import *
 
 VERSION = "faultline/1.1.0"
 SETTLEMENT_VERSION = "faultline-settlement/1.0"
@@ -70,7 +70,7 @@ def _business(condition: bool, message: str) -> None:
 
 
 def _now_ts() -> int:
-    raw = str(gl.message.raw["datetime"])
+    raw = str(gl.message_raw["datetime"])
     moment = datetime.fromisoformat(raw.replace("Z", "+00:00"))
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
@@ -483,7 +483,7 @@ def _classified_user_error(exc: Exception):
     _fail("TRANSIENT", type(exc).__name__)
 
 
-class Faultline(gl.contract.Contract):
+class Faultline(gl.Contract):
     charter_ids: gl.storage.DynArray[str]
     charters: gl.storage.TreeMap[str, str]
     attempts: gl.storage.TreeMap[str, str]
@@ -762,8 +762,8 @@ class Faultline(gl.contract.Contract):
 
         try:
             # Keep the requested custom comparative primitive on runners that
-            # expose its explicit name. Studio Next's v0.6 runner surface uses
-            # run_nondet for the same leader/validator contract.
+            # expose its explicit name. Hosted runners that expose only
+            # run_nondet use the same leader/validator contract.
             if hasattr(gl.vm, "run_nondet_unsafe"):
                 decision = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
             else:
@@ -875,7 +875,7 @@ class Faultline(gl.contract.Contract):
 
     @gl.public.view
     def get_contract_version(self) -> str:
-        return json.dumps({"version": VERSION, "settlement_version": SETTLEMENT_VERSION, "accounting_unit": DEMO_UNIT, "pipeline": list(SLOTS), "runner": "py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng"}, sort_keys=True)
+        return json.dumps({"version": VERSION, "settlement_version": SETTLEMENT_VERSION, "accounting_unit": DEMO_UNIT, "pipeline": list(SLOTS), "runner": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6"}, sort_keys=True)
 
     @gl.public.view
     def get_charter(self, charter_id: str) -> str:

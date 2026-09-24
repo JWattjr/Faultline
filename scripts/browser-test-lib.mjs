@@ -70,7 +70,7 @@ export async function openFaultline() {
     await waitReady(origin, server, () => output);
     browser = await chromium.launch({ executablePath, headless: true, args: process.platform === "win32" ? [] : ["--no-sandbox"] });
     const context = await browser.newContext({ viewport: { width: 1440, height: 1050 }, reducedMotion: "reduce" });
-    await context.route("https://studio-dev.genlayer.com/**", (route) => route.abort("failed"));
+    await context.route("https://studionet.genlayer.com/**", (route) => route.abort("failed"));
     const page = await context.newPage();
     const pageErrors = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));

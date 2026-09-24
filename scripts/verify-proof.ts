@@ -1,5 +1,6 @@
-import { createClient, isSuccessful } from "genlayer-js";
-import { studioDevnet } from "genlayer-js/chains";
+import { createClient } from "genlayer-js";
+import { studionet } from "genlayer-js/chains";
+import { transactionExecutionResultName, transactionStatusName, type TransactionStatusLike } from "../lib/transaction-status.ts";
 import {
   CHAIN_ID, DEPLOYMENT_FILE, PROOF_FILE, RPC_URL, checkNetwork, explorerTransaction,
   readContract, readJson, withRetry,
@@ -25,11 +26,11 @@ async function main(): Promise<void> {
   const deployment = readJson<Deployment>(DEPLOYMENT_FILE);
   const proof = readJson<Proof>(PROOF_FILE);
   if (!deployment || !proof) throw new Error("No deployment/proof pair exists yet. Deploy and seed first; this command never creates proof records.");
-  if (deployment.network !== "studio-next" || deployment.chainId !== CHAIN_ID || proof.chainId !== CHAIN_ID || proof.contractAddress !== deployment.contractAddress || proof.verified !== true) {
-    throw new Error("Deployment and proof metadata do not identify the same verified Studio Next contract.");
+  if (deployment.network !== "studionet" || deployment.chainId !== CHAIN_ID || proof.chainId !== CHAIN_ID || proof.contractAddress !== deployment.contractAddress || proof.verified !== true) {
+    throw new Error("Deployment and proof metadata do not identify the same verified Studio Net contract.");
   }
   await checkNetwork();
-  const reader = createClient({ chain: studioDevnet, endpoint: RPC_URL });
+  const reader = createClient({ chain: studionet, endpoint: RPC_URL });
   const checked: Array<{ charter_id: string; outcome: string; basis: string; state: string; receipt_hash?: string; transactions: number }> = [];
   for (const [charterId, item] of Object.entries(proof.cases)) {
     if (item.charter_id !== charterId) throw new Error(`Proof map key does not match charter ${charterId}.`);
@@ -37,9 +38,10 @@ async function main(): Promise<void> {
     if (transactions.length < 6) throw new Error(`${charterId} proof is incomplete; expected create, seal, three handoffs, and adjudication.`);
     for (const tx of transactions) {
       const latest = await withRetry(`verify ${tx.hash}`, () => reader.getTransaction({ hash: tx.hash as never }));
-      const lifecycle = String(latest.statusName ?? latest.status ?? "UNKNOWN");
-      const execution = String(latest.txExecutionResultName ?? "UNKNOWN");
-      if (lifecycle !== "FINALIZED" || !isSuccessful(latest)) throw new Error(`${tx.hash} is ${lifecycle} / ${execution}; proof is not successful.`);
+      const receipt = latest as unknown as TransactionStatusLike;
+      const lifecycle = transactionStatusName(receipt);
+      const execution = transactionExecutionResultName(receipt);
+      if (lifecycle !== "FINALIZED" || execution !== "FINISHED_WITH_RETURN") throw new Error(`${tx.hash} is ${lifecycle} / ${execution}; proof is not successful.`);
       tx.statusName = lifecycle;
       tx.executionResultName = execution;
       tx.successful = true;

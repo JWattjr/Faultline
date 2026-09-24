@@ -8,13 +8,13 @@ web
 
 ## Stack
 
-Next.js App Router, React, strict TypeScript, `genlayer-js`, and Transaction Kit on Node.js 22 or newer. Contract and proof scripts use the pinned GenLayer Python toolchain. No database, conventional backend, paid service, or authentication system is in scope.
+Next.js App Router, React, strict TypeScript, and stable `genlayer-js` on Node.js 22 or newer. Contract and proof scripts use the pinned GenLayer Python toolchain. No database, conventional backend, paid service, or authentication system is in scope.
 
 ## Users
 
 - A requester who needs one charter to govern a fixed Research → Analysis → Delivery agent pipeline.
 - A reviewer who needs to inspect the charter, source material, validator decision, finality, execution result, and settlement without connecting a wallet.
-- A wallet holder who creates, seals, submits to, or adjudicates a charter through Studio Next.
+- A wallet holder who creates, seals, submits to, or adjudicates a charter through Studio Net.
 
 ## Product Purpose
 
@@ -26,7 +26,7 @@ Faultline adjudicates the pipeline as a whole. It does not assign percentage bla
 
 ## Operating Context
 
-The MVP is an authorization and settlement demonstration on GenLayer Studio Next, chain 61997. It uses public HTTPS evidence pages and wallet interaction for transactions. Review is wallet-free. Four clearly marked synthetic reviewer cases demonstrate acceptance, repair, validator-judged breach, and deterministic breach when submitted agent evidence has changed.
+The MVP is an authorization and settlement demonstration on GenLayer Studio Net, chain 61999. It uses public HTTPS evidence pages and wallet interaction for transactions. Review is wallet-free. Four clearly marked synthetic reviewer cases demonstrate acceptance, repair, validator-judged breach, and deterministic breach when submitted agent evidence has changed.
 
 ## Capabilities and Constraints
 
@@ -37,9 +37,9 @@ The MVP is an authorization and settlement demonstration on GenLayer Studio Next
 - A fetched HTTP 200 agent evidence or artifact whose SHA-256 differs from its submitted digest deterministically settles as `BREACHED` with basis `EVIDENCE_TAMPERED`, outside the LLM judgment. The mismatched submitted and fetched hashes remain inspectable. Charter document mismatches and transient network/HTTP failures retain their strict/retryable behavior.
 - The contract owns lifecycle transitions and integer basis-point accounting. No real assets are held or transferred.
 - Every balance, reward, escrow, and bond is a simulated `DEMO` accounting unit.
-- Studio Next is the only target network. Bradbury is out of scope.
+- Studio Net is the only target network. Bradbury is out of scope.
 - The product is an authorization prototype. Evidence, accounting, and seeded histories are synthetic; it is not production escrow, a reputation oracle, or financial advice.
-- Integration consensus, public deployment, and production hosting depend on the availability of Studio Next and deployment credentials in the environment.
+- The current public review deployment is available at `https://faultline-sandy.vercel.app`; the deployed Studio Net contract and seeded fixture proofs are recorded in `deployments/`. Fee profiling and the separate integration command remain operational follow-ups.
 
 ## Brand Commitments
 

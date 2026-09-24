@@ -11,7 +11,7 @@ try {
   await page.getByRole("heading", { name: "The handoff, on record." }).waitFor();
   await page.getByRole("heading", { name: "Source-led market brief" }).waitFor();
   await page.getByText("Synthetic fixture preview", { exact: true }).waitFor();
-  await page.getByRole("banner").getByText("Studio Next unavailable", { exact: true }).waitFor();
+  await page.getByRole("banner").getByText("Studio Net unavailable", { exact: true }).waitFor();
   assert.match(await page.locator(".demo-note").innerText(), /not evidence of a real customer or production incident/i);
 
   await page.locator(".case-button").filter({ hasText: "Research memo with repair path" }).click();

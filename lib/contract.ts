@@ -1,13 +1,14 @@
 import { createClient } from "genlayer-js";
-import { studioDevnet } from "genlayer-js/chains";
+import { studionet } from "genlayer-js/chains";
+import { transactionExecutionResultName, transactionStatusName, type TransactionStatusLike } from "./transaction-status";
 
-export const CHAIN_ID = 61997;
-export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL ?? "https://studio-dev.genlayer.com/api";
-export const EXPLORER_URL = process.env.NEXT_PUBLIC_EXPLORER_URL ?? "https://explorer-studio-dev.genlayer.com";
+export const CHAIN_ID = 61999;
+export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL ?? "https://studio.genlayer.com/api";
+export const EXPLORER_URL = process.env.NEXT_PUBLIC_EXPLORER_URL ?? "https://explorer-studio.genlayer.com";
 export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ?? "";
 export const FIXTURE_BASE_URL = process.env.NEXT_PUBLIC_FIXTURE_BASE_URL ?? "";
 
-const reader = createClient({ chain: studioDevnet, endpoint: RPC_URL });
+const reader = createClient({ chain: studionet, endpoint: RPC_URL });
 
 export type Agent = {
   agent_id: string;
@@ -133,23 +134,23 @@ function unpack<T>(value: unknown): T {
   return value as T;
 }
 
-export async function checkStudioNext(): Promise<number> {
+export async function checkStudioNet(): Promise<number> {
   const response = await fetch(RPC_URL, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }),
     cache: "no-store",
   });
-  if (!response.ok) throw new Error(`Studio Next RPC returned HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`Studio Net RPC returned HTTP ${response.status}`);
   const body = (await response.json()) as { result?: string; error?: { message?: string } };
   if (body.error?.message) throw new Error(body.error.message);
   const chainId = Number.parseInt(body.result ?? "0x0", 16);
-  if (chainId !== CHAIN_ID) throw new Error(`RPC reports chain ${chainId}; expected Studio Next ${CHAIN_ID}`);
+  if (chainId !== CHAIN_ID) throw new Error(`RPC reports chain ${chainId}; expected Studio Net ${CHAIN_ID}`);
   return chainId;
 }
 
 async function view<T>(functionName: string, args: Array<string | number> = []): Promise<T> {
-  if (!/^0x[\da-fA-F]{40}$/.test(CONTRACT_ADDRESS)) throw new Error("No Studio Next contract address is configured.");
+  if (!/^0x[\da-fA-F]{40}$/.test(CONTRACT_ADDRESS)) throw new Error("No Studio Net contract address is configured.");
   const result = await reader.readContract({
     address: CONTRACT_ADDRESS as `0x${string}`,
     functionName,
@@ -194,22 +195,17 @@ export async function readTransactionFacts(hash: string): Promise<TransactionFac
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getTransactionByHash", params: [hash] }),
     cache: "no-store",
   });
-  if (!response.ok) throw new Error(`Studio Next RPC returned HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`Studio Net RPC returned HTTP ${response.status}`);
   const body = (await response.json()) as {
-    result?: {
-      status?: string;
-      txExecutionResultName?: string;
-      num_of_initial_validators?: number;
-      consensus_data?: { votes?: Record<string, string>; leader_receipt?: Array<{ result?: string }> };
-    };
+    result?: TransactionStatusLike & { num_of_initial_validators?: number };
     error?: { message?: string };
   };
   if (body.error?.message) throw new Error(body.error.message);
   const tx = body.result;
   const facts: TransactionFacts = {
     hash,
-    status: tx?.status ?? "UNKNOWN",
-    execution: tx?.txExecutionResultName ?? "UNKNOWN",
+    status: tx ? transactionStatusName(tx) : "UNKNOWN",
+    execution: tx ? transactionExecutionResultName(tx) : "UNKNOWN",
     validators: tx?.num_of_initial_validators,
     votes: tx?.consensus_data?.votes,
   };

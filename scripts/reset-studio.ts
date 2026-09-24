@@ -29,6 +29,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error(`Studio Next reset stopped: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(`Studio Net reset stopped: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
 });

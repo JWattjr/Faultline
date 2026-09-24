@@ -2,22 +2,24 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createAccount, createClient, generatePrivateKey, isSuccessful } from "genlayer-js";
-import { studioDevnet } from "genlayer-js/chains";
-import type { GenLayerTransaction } from "genlayer-js/types";
+import { createAccount, createClient, generatePrivateKey } from "genlayer-js";
+import { studionet } from "genlayer-js/chains";
+import { TransactionStatus, type GenLayerTransaction } from "genlayer-js/types";
+import { isSuccessfulExecution, transactionExecutionResultName, transactionResultName, transactionStatusName, type TransactionStatusLike } from "../lib/transaction-status.ts";
+export { isSuccessfulExecution } from "../lib/transaction-status.ts";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const ENV_FILE = resolve(ROOT, ".env");
-export const DEPLOYMENT_FILE = resolve(ROOT, "deployments", "studio-next.json");
+export const DEPLOYMENT_FILE = resolve(ROOT, "deployments", "studionet.json");
 export const PROOF_FILE = resolve(ROOT, "deployments", "demo-proof.json");
 export const PUBLIC_PROOF_FILE = resolve(ROOT, "public", "demo-proof.json");
 export const FEE_PROFILE_FILE = resolve(ROOT, "deployments", "fee-profile.json");
-export const RPC_URL = "https://studio-dev.genlayer.com/api";
-export const EXPLORER_URL = "https://explorer-studio-dev.genlayer.com";
-export const CHAIN_ID = 61997;
-export const RUNNER = "py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng";
+export const RPC_URL = "https://studio.genlayer.com/api";
+export const EXPLORER_URL = "https://explorer-studio.genlayer.com";
+export const CHAIN_ID = 61999;
+export const RUNNER = "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6";
 
-if (studioDevnet.id !== CHAIN_ID) throw new Error(`Pinned genlayer-js Studio Next chain id is ${studioDevnet.id}, expected ${CHAIN_ID}.`);
+if (studionet.id !== CHAIN_ID) throw new Error(`Pinned genlayer-js Studio Net chain id is ${studionet.id}, expected ${CHAIN_ID}.`);
 
 function loadEnvFile(): void {
   if (!existsSync(ENV_FILE)) return;
@@ -75,7 +77,7 @@ export type FixtureCase = {
 };
 export type FixtureManifest = { accounting_unit: "DEMO"; cases: FixtureCase[] };
 export type Deployment = {
-  network: "studio-next";
+  network: "studionet";
   chainId: number;
   rpcUrl: string;
   explorerUrl: string;
@@ -86,6 +88,7 @@ export type Deployment = {
   runner: string;
   fixtureBaseUrl: string;
 };
+
 export type IntegrationProofCase = {
   charter_id: string;
   title: string;
@@ -132,7 +135,7 @@ export async function rpc<T>(method: string, params: unknown[] = []): Promise<T>
 
 export async function checkNetwork(): Promise<void> {
   const chainId = Number.parseInt(await rpc<string>("eth_chainId"), 16);
-  if (chainId !== CHAIN_ID) throw new Error(`RPC ${RPC_URL} reports chain ${chainId}; expected Studio Next ${CHAIN_ID}.`);
+  if (chainId !== CHAIN_ID) throw new Error(`RPC ${RPC_URL} reports chain ${chainId}; expected Studio Net ${CHAIN_ID}.`);
 }
 
 export function loadOrCreateKey(name: string): Hex {
@@ -150,8 +153,8 @@ export function makeClients(privateKey = loadOrCreateKey("DEPLOYER_PRIVATE_KEY")
   const account = createAccount(privateKey);
   return {
     account,
-    client: createClient({ chain: studioDevnet, endpoint: RPC_URL, account }),
-    reader: createClient({ chain: studioDevnet, endpoint: RPC_URL }),
+    client: createClient({ chain: studionet, endpoint: RPC_URL, account }),
+    reader: createClient({ chain: studionet, endpoint: RPC_URL }),
   };
 }
 
@@ -160,7 +163,7 @@ export async function ensureFunded(address: string, minimumWei = 10n ** 19n): Pr
   if (balance >= minimumWei) return balance;
   await rpc("sim_fundAccount", [address, 100 * 1e18]);
   const after = BigInt(await rpc<string>("eth_getBalance", [address, "latest"]));
-  if (after < minimumWei) throw new Error(`Studio Next test faucet did not fund ${address}; balance is ${after} wei.`);
+  if (after < minimumWei) throw new Error(`Studio Net test faucet did not fund ${address}; balance is ${after} wei.`);
   return after;
 }
 
@@ -175,27 +178,34 @@ export async function waitOutcome(
   process.stdout.write(`  ${label}: ${hash} … `);
   const transaction = await withRetry(`${label} finality`, () => client.waitForTransactionReceipt({
     hash: hash as never,
-    waitUntil: "finalized",
-    interval: 8_000,
+    status: TransactionStatus.FINALIZED,
+    // Space receipt polls to conserve hosted RPC capacity for writes and read-back checks.
+    interval: 20_000,
     retries: 60,
-    fullTransaction: true,
   })) as GenLayerTransaction;
+  const receipt = transaction as unknown as TransactionStatusLike;
   const result: TxOutcome = {
     hash,
-    statusName: String(transaction.statusName ?? transaction.status ?? "UNKNOWN"),
-    executionResultName: String(transaction.txExecutionResultName ?? "UNKNOWN"),
-    successful: isSuccessful(transaction),
-    resultName: transaction.resultName ? String(transaction.resultName) : undefined,
+    statusName: transactionStatusName(receipt),
+    executionResultName: transactionExecutionResultName(receipt),
+    successful: isSuccessfulExecution(receipt),
+    resultName: transactionResultName(receipt),
     explorer: explorerTransaction(hash),
   };
   try {
-    const facts = await rpc<{
-      num_of_initial_validators?: number;
-      consensus_data?: { votes?: Record<string, string>; leader_receipt?: Array<{ result?: string }> };
-    } | null>("eth_getTransactionByHash", [hash]);
+    const facts = await rpc<({ num_of_initial_validators?: number } & TransactionStatusLike) | null>("eth_getTransactionByHash", [hash]);
     result.validators = facts?.num_of_initial_validators;
     result.votes = facts?.consensus_data?.votes;
-    const encoded = facts?.consensus_data?.leader_receipt?.[0]?.result;
+    if (result.statusName === "UNKNOWN" && facts) result.statusName = transactionStatusName(facts);
+    if (result.executionResultName === "UNKNOWN" && facts) {
+      result.executionResultName = transactionExecutionResultName(facts);
+      result.successful = isSuccessfulExecution(facts);
+    }
+    if (result.resultName === "UNKNOWN" && facts) result.resultName = transactionResultName(facts);
+    const leader = facts?.consensus_data?.leader_receipt?.[0];
+    const diagnostic = leader?.genvm_result?.error_description || leader?.genvm_result?.stderr;
+    if (!result.successful && diagnostic) result.errorText = diagnostic.slice(0, 300);
+    const encoded = leader?.result;
     if (!result.successful && encoded) {
       const bytes = Buffer.from(encoded, "base64");
       result.errorText = bytes.subarray(1).toString("utf8").slice(0, 300);
@@ -203,16 +213,8 @@ export async function waitOutcome(
   } catch { /* Lifecycle plus execution result remain authoritative. */ }
   console.log(`${result.statusName} / ${result.executionResultName}`);
   if (result.statusName !== "FINALIZED") throw new Error(`${label} transaction did not finalize (status ${result.statusName}).`);
-  if (!result.successful) throw new Error(`${label} finalized with execution ${result.executionResultName}; no successful state change is recorded.`);
+  if (!result.successful) throw new Error(`${label} finalized with execution ${result.executionResultName}; ${result.errorText ?? "no successful state change is recorded."}`);
   return result;
-}
-
-export async function estimateFees(client: ReturnType<typeof makeClients>["client"], call?: { address: Hex; functionName: string; args: Array<string | number | bigint> }) {
-  if (call) {
-    try { return await withRetry(`fee simulation ${call.functionName}`, () => client.estimateTransactionFeesForWrite(call), 3); }
-    catch { console.log(`Simulation estimate unavailable for ${call.functionName}; requesting Studio Next's current network fee quote.`); }
-  }
-  return withRetry("network fee quote", () => client.estimateTransactionFees());
 }
 
 export async function writeCall(
@@ -222,8 +224,7 @@ export async function writeCall(
   args: Array<string | number | bigint>,
   label = functionName,
 ): Promise<TxOutcome> {
-  const fees = await estimateFees(client, { address, functionName, args });
-  const hash = await withRetry(`write ${functionName}`, () => client.writeContract({ address, functionName, args, fees: fees as never })) as Hex;
+  const hash = await withRetry(`write ${functionName}`, () => client.writeContract({ address, functionName, args, value: 0n })) as Hex;
   return waitOutcome(client, hash, label);
 }
 

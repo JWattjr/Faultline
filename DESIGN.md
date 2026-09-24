@@ -82,7 +82,7 @@ Headings carry a clear scale step, while metadata stays compact. Full evidence h
 
 The app keeps the existing reviewer journey: case register and selected docket; handoff trace; clauses and consensus; evidence-to-settlement rail; receipt; methodology; reviewer controls. The folder tabs anchor to the charter, trace, receipt, and controls sections. At 1050px the detail view stacks. At 720px the register becomes a native picker and the evidence rail stacks. The supported widths include 1440px, 1280px, and 375px without horizontal overflow.
 
-The first view contains honest Studio Next state, selected fixture/live labeling, and only facts present in the charter or fixture. Summary pills show escrow, agent count, bonds at stake, and outcome; they do not invent activity metrics.
+The first view contains honest Studio Net state, selected fixture/live labeling, and only facts present in the charter or fixture. Summary pills show escrow, agent count, bonds at stake, and outcome; they do not invent activity metrics.
 
 ## Shapes and depth
 

@@ -1,0 +1,27 @@
+{
+  "network": "studionet",
+  "chainId": 61999,
+  "rpcUrl": "https://studio.genlayer.com/api",
+  "explorerUrl": "https://explorer-studio.genlayer.com",
+  "contractAddress": "0x70B335af04A62e956856A4b5a3aDBEe1EbB5DF11",
+  "deployTx": {
+    "hash": "0x64bca079a17de999f8bf67086b145d40132c39ae2a73e9ef19344d0a12d21c4b",
+    "statusName": "FINALIZED",
+    "executionResultName": "FINISHED_WITH_RETURN",
+    "successful": true,
+    "resultName": "MAJORITY_AGREE",
+    "explorer": "https://explorer-studio.genlayer.com/tx/0x64bca079a17de999f8bf67086b145d40132c39ae2a73e9ef19344d0a12d21c4b",
+    "validators": 5,
+    "votes": {
+      "0x03D58A4DeF6fDFc032A56374785a5F571D07Bc11": "agree",
+      "0x14402D49f317CE1a2F35BAE01b1804A2A9703dCb": "agree",
+      "0x3D83ab507785b95ca5C208bEc80CCe3D5ca98100": "agree",
+      "0x3E5ee2507cc167C9925Bf10c67D7986581112024": "agree",
+      "0x90402341F0B0e97b23023c0a87de957FB7148E0F": "agree"
+    }
+  },
+  "deployer": "0x16bB6408752ae17803C6F37B1d92776E97605A2b",
+  "deployedAt": "2026-09-24T19:49:01.399Z",
+  "runner": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6",
+  "fixtureBaseUrl": "https://faultline-sandy.vercel.app"
+}

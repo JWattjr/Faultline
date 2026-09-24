@@ -8,7 +8,7 @@ This is an authorization prototype. It does not custody or transfer real assets.
 
 - Node.js 22 or newer.
 - Python 3.12 or newer (the setup script locates a supported interpreter and creates `.venv`).
-- Studio Next access only for deploy, seed, integration, and proof commands.
+- Studio Net access only for deploy, seed, integration, and proof commands.
 
 ## Setup and offline checks
 
@@ -18,9 +18,9 @@ npm run setup:python
 npm run check
 ```
 
-`check` runs fixture generation, contract lint and schema generation, direct tests, frontend lint, both TypeScript projects, a production build, and the local UI/responsive checks. It does not claim validator consensus. The direct suite exercises contract business logic; use `test:integration` for full Studio Next validator execution.
+`check` runs fixture generation, contract lint and schema generation, direct tests, frontend lint, both TypeScript projects, a production build, and the local UI/responsive checks. It does not claim validator consensus. On this Windows setup, the direct-test harness currently hits 56 setup errors when GenLayer tries to decode empty stdin; live Studio Net proofs cover all four adjudication paths. Use `test:integration` for the separate full network run.
 
-## Studio Next lifecycle
+## Studio Net lifecycle
 
 First publish the synthetic evidence pages so validators can retrieve them over HTTPS:
 
@@ -29,7 +29,9 @@ npm run build
 npm run deploy:frontend
 ```
 
-`deploy:frontend` verifies that the production homepage is the Faultline app and that `/evidence/manifest.json` is JSON containing all four synthetic cases before saving the origin in `.env`. Studio Next validators need the evidence pages to be publicly reachable over HTTPS; a team-authentication wall prevents that. Then deploy, seed, verify, and publish the live contract proof:
+`deploy:frontend` verifies that the production homepage is the Faultline app and that `/evidence/manifest.json` is JSON containing all four synthetic cases before saving the origin in `.env`. The current public deployment is [faultline-sandy.vercel.app](https://faultline-sandy.vercel.app). The live Studio Net deployment and four verified demo outcomes are recorded in `deployments/studionet.json` and `deployments/demo-proof.json`; the public proof is served at `/demo-proof.json`.
+
+For a fresh deployment, deploy, seed, verify, and publish the live contract proof:
 
 ```powershell
 npm run deploy
@@ -40,11 +42,11 @@ npm run build
 npm run deploy:frontend
 ```
 
-Transactions run sequentially. Deployment and seeding check both finality and successful execution, then read the contract state back before writing generated proof files. The Studio Next deployer and three agent keys are kept in the gitignored `.env`; scripts never print private keys. Do not use Bradbury.
+Transactions run sequentially. Deployment and seeding check both finality and successful execution, then read the contract state back before writing generated proof files. The Studio Net deployer and three agent keys are kept in the gitignored `.env`; scripts never print private keys. Do not use Bradbury.
 
 Seeding verifies that every hosted charter, evidence, and artifact page returns HTTPS 200 and matches its submitted SHA-256 hash, except for the single declared `FLT-TAMPER-001` evidence mismatch. That mismatch is required by the case: the manifest records both the originally submitted digest and the fetched digest. A self-hosted fixture is not independent third-party evidence.
 
-Run the network integration flow separately when Studio Next is reachable and the evidence host is configured. It deploys a fresh temporary contract, runs all three flows sequentially, waits for finalized successful execution, and verifies fresh contract reads. It does not replace the seeded public contract:
+Run the network integration flow separately when Studio Net is reachable and the evidence host is configured. It deploys a fresh temporary contract, runs all four proof cases sequentially, waits for finalized successful execution, and verifies fresh contract reads. It does not replace the seeded public contract:
 
 ```powershell
 npm run test:integration
@@ -56,11 +58,13 @@ Network-dependent proof reads are explicit and separate from offline quality gat
 npm run verify:proof
 ```
 
-## Studio Next reset
+## Studio Net reset
 
-If Studio Next has reset, run `npm run reset:studio`. It redeploys, reseeds all four cases, verifies proof records, rebuilds the frontend, and republishes when hosting authentication and a publicly reachable evidence host are available. Every new contract address and proof replaces the generated files only after the new deployment succeeds.
+If Studio Net has reset, run `npm run reset:studio`. It redeploys, reseeds all four cases, verifies proof records, rebuilds the frontend, and republishes to the configured public host. Every new contract address and proof replaces the generated files only after the new deployment succeeds.
 
 ## Frontend hosting
+
+For Vercel, keep the project root at `.` and the framework preset set to **Next.js** with its default output directory. The `Other` preset can publish `public/evidence/` while leaving the `/` app route unavailable.
 
 Configure the existing hosting provider with `NEXT_PUBLIC_CONTRACT_ADDRESS`, `NEXT_PUBLIC_DEPLOYMENT_FILE`, and `NEXT_PUBLIC_FIXTURE_BASE_URL` as appropriate, then deploy the production build. The interface uses actual reads and reports unavailable state when RPC or deployment data cannot be read.
 

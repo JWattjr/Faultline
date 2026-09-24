@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = str(ROOT / "contracts" / "faultline.py")
 EVIDENCE = ROOT / "public" / "evidence"
 BASE_URL = "https://evidence.example.org/evidence"
-GENVM_RUNNER_HASH = "5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng"
+GENVM_RUNNER_HASH = "1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6"
 os.environ["GENVM_VERSION"] = "v0.6.0-rc5"
 
 if sys.platform == "win32":

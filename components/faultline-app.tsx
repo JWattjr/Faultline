@@ -14,7 +14,7 @@ import {
   type Handoff,
   type LiveRecord,
   type TamperedSource,
-  checkStudioNext,
+  checkStudioNet,
   explorerContract,
   explorerTransaction,
   humanTime,
@@ -91,12 +91,6 @@ function formatUnits(value: number): string {
   return Number.isInteger(value) ? value.toLocaleString("en-US") : "Unavailable";
 }
 
-function formatGen(wei: bigint): string {
-  const whole = wei / 10n ** 18n;
-  const decimals = (wei % 10n ** 18n).toString().padStart(18, "0").slice(0, 4).replace(/0+$/, "");
-  return `${whole.toString()}${decimals ? `.${decimals}` : ""} GEN`;
-}
-
 function evidenceHref(filename: string): string {
   if (!filename) return "#";
   if (FIXTURE_BASE_URL) return `${FIXTURE_BASE_URL.replace(/\/$/, "")}/evidence/${encodeURIComponent(filename)}`;
@@ -158,7 +152,7 @@ function MetaCell({ label, value, mono = false }: { label: string; value: string
 
 function NetworkPill({ state, walletChain }: { state: NetworkState; walletChain?: number }) {
   const className = state === "online" ? "network-status" : state === "offline" ? "network-status network-status--offline" : "network-status network-status--checking";
-  const text = state === "checking" ? "Checking Studio Next" : state === "offline" ? "Studio Next unavailable" : walletChain && walletChain !== CHAIN_ID ? `Wallet on ${walletChain}` : "Studio Next · 61997";
+  const text = state === "checking" ? "Checking Studio Net" : state === "offline" ? "Studio Net unavailable" : walletChain && walletChain !== CHAIN_ID ? `Wallet on ${walletChain}` : "Studio Net · 61999";
   const shortText = state === "checking" ? "Checking…" : state === "offline" ? "Offline" : walletChain && walletChain !== CHAIN_ID ? "Wrong chain" : "Online";
   return <span className={className} role="status" aria-label={text}><span className={`status-dot${state === "online" ? " status-dot--ok" : state === "offline" ? " status-dot--bad" : ""}`} aria-hidden="true" /><span className="network-status__full" aria-hidden="true">{text}</span><span className="network-status__short" aria-hidden="true">{shortText}</span></span>;
 }
@@ -302,7 +296,7 @@ function MoneyTable({
   );
 }
 
-function StudioNextLink({ children, href }: { children: ReactNode; href: string }) {
+function StudioNetLink({ children, href }: { children: ReactNode; href: string }) {
   return <a href={href} target="_blank" rel="noreferrer">{children}</a>;
 }
 
@@ -361,7 +355,7 @@ export default function FaultlineApp() {
     setRefreshing(true);
     setNetworkError("");
     try {
-      await checkStudioNext();
+      await checkStudioNet();
       setNetwork("online");
       if (!/^0x[\da-fA-F]{40}$/.test(CONTRACT_ADDRESS)) {
         setIndex(null);
@@ -388,7 +382,7 @@ export default function FaultlineApp() {
       return nextRecord;
     } catch (error) {
       const message = messageOf(error);
-      if (/expected Studio Next|RPC returned|fetch failed|network|failed to fetch|timeout/i.test(message)) {
+      if (/expected Studio Net|RPC returned|fetch failed|network|failed to fetch|timeout/i.test(message)) {
         setNetwork("offline");
         setNetworkError(message);
       } else {
@@ -404,7 +398,7 @@ export default function FaultlineApp() {
 
   useEffect(() => {
     let current = true;
-    void checkStudioNext().then(async () => {
+    void checkStudioNet().then(async () => {
       if (!current) return;
       setNetwork("online");
       setNetworkError("");
@@ -676,16 +670,16 @@ export default function FaultlineApp() {
         </section>
 
         <div className="environment" aria-label="Deployment details">
-          <span className="environment__label">Studio Next</span>
+          <span className="environment__label">Studio Net</span>
           <NetworkPill state={network} walletChain={wallet.chainId} />
           <span className="environment__label">Contract</span>
           <span className="environment__address mono">
-            {CONTRACT_ADDRESS ? <StudioNextLink href={explorerContract()}>{CONTRACT_ADDRESS}</StudioNextLink> : "Not deployed in this environment"}
+            {CONTRACT_ADDRESS ? <StudioNetLink href={explorerContract()}>{CONTRACT_ADDRESS}</StudioNetLink> : "Not deployed in this environment"}
           </span>
           {selectionMode === "preview" ? <span className="data-mode">Synthetic fixture preview</span> : <span className="data-mode data-mode--live">Live contract selection</span>}
         </div>
 
-        {networkError ? <div className="status-message status-message--error" role="alert"><span className="status-dot status-dot--bad" aria-hidden="true" /><p><strong>Studio Next could not be reached.</strong> {networkError} Live state is unavailable. Any fixture shown below is a separate synthetic preview.</p></div> : null}
+        {networkError ? <div className="status-message status-message--error" role="alert"><span className="status-dot status-dot--bad" aria-hidden="true" /><p><strong>Studio Net could not be reached.</strong> {networkError} Live state is unavailable. Any fixture shown below is a separate synthetic preview.</p></div> : null}
         {indexError && CONTRACT_ADDRESS ? <div className="status-message status-message--error" role="alert"><span className="status-dot status-dot--bad" aria-hidden="true" /><p><strong>Contract read unavailable.</strong> {indexError} Refresh after the chain is reachable; fixture preview remains separately labeled.</p></div> : null}
         {manifestError ? <div className="status-message status-message--error" role="alert"><span className="status-dot status-dot--bad" aria-hidden="true" /><p><strong>Synthetic fixture files could not be loaded.</strong> {manifestError}</p></div> : null}
 
@@ -728,7 +722,7 @@ export default function FaultlineApp() {
             <h2 id="docket-title">{title}</h2>
             <p className="docket__purpose">{purpose}</p>
 
-            {emptyLive ? <div className="status-message" role="status"><span className="status-dot" aria-hidden="true" /><p>{recordError ? <><strong>Latest on-chain read failed.</strong> {recordError} The selected charter has no substitute fixture content.</> : network === "offline" ? "Studio Next is offline. The live charter remains unavailable; choose a separately labeled fixture to inspect the reviewer flow." : "Reading the selected charter and current attempt from Studio Next…"}</p></div> : null}
+            {emptyLive ? <div className="status-message" role="status"><span className="status-dot" aria-hidden="true" /><p>{recordError ? <><strong>Latest on-chain read failed.</strong> {recordError} The selected charter has no substitute fixture content.</> : network === "offline" ? "Studio Net is offline. The live charter remains unavailable; choose a separately labeled fixture to inspect the reviewer flow." : "Reading the selected charter and current attempt from Studio Net…"}</p></div> : null}
             {recordError && liveRecord ? <div className="status-message status-message--error" role="alert"><span className="status-dot status-dot--bad" aria-hidden="true" /><p><strong>The newest read failed.</strong> {recordError} The values below are the last successful on-chain read at {currentReadAt}.</p></div> : null}
 
             <div className="docket-meta">
@@ -821,11 +815,11 @@ export default function FaultlineApp() {
               <div className="fact-row"><dt>Validators</dt><dd>{transactionFacts?.validators ?? selectedProofTx?.validators ?? (expected ? "Not applicable" : "Unavailable")}</dd></div>
               <div className="fact-row"><dt>Validator votes</dt><dd>{transactionFacts?.votes ? Object.entries(transactionFacts.votes).map(([id, vote]) => `${shortHash(id, 4)} ${vote}`).join(" · ") : selectedProofTx?.votes ? Object.entries(selectedProofTx.votes).map(([id, vote]) => `${shortHash(id, 4)} ${vote}`).join(" · ") : "Unavailable"}</dd></div>
               {transactionFacts?.errorText ? <div className="fact-row"><dt>Execution detail</dt><dd>{transactionFacts.errorText}</dd></div> : null}
-              <div className="fact-row"><dt>Transaction</dt><dd className="mono">{transactionFacts?.hash ? <StudioNextLink href={explorerTransaction(transactionFacts.hash)}>{shortHash(transactionFacts.hash, 9)}</StudioNextLink> : selectedProofTx?.hash ? <StudioNextLink href={explorerTransaction(selectedProofTx.hash)}>{shortHash(selectedProofTx.hash, 9)}</StudioNextLink> : expected ? "No proof transaction" : "Not recorded"}</dd></div>
+              <div className="fact-row"><dt>Transaction</dt><dd className="mono">{transactionFacts?.hash ? <StudioNetLink href={explorerTransaction(transactionFacts.hash)}>{shortHash(transactionFacts.hash, 9)}</StudioNetLink> : selectedProofTx?.hash ? <StudioNetLink href={explorerTransaction(selectedProofTx.hash)}>{shortHash(selectedProofTx.hash, 9)}</StudioNetLink> : expected ? "No proof transaction" : "Not recorded"}</dd></div>
               {transactionFactsError ? <div className="fact-row"><dt>Explorer read</dt><dd>{transactionFactsError} · saved proof metadata remains visible</dd></div> : null}
               {!expected && selectedProofTx && !transactionFacts ? <div className="fact-row"><dt>Execution confirmation</dt><dd>{selectedProofTx.successful === true ? "Proof file records successful execution; refresh the RPC read to confirm current details." : "Proof transaction has not been verified as successful."}</dd></div> : null}
             </dl>
-            {transactionFacts?.hash ? <p className="refresh-label">Current transaction facts fetched from Studio Next. FINALIZED by itself is not shown as execution success.</p> : null}
+            {transactionFacts?.hash ? <p className="refresh-label">Current transaction facts fetched from Studio Net. FINALIZED by itself is not shown as execution success.</p> : null}
           </aside>
         </section>
 
@@ -849,7 +843,7 @@ export default function FaultlineApp() {
             live={Boolean(liveRecord)}
             escrow={charter?.escrow_units ?? fixture?.escrow_units ?? 0}
             fixture={fixture}
-          /> : <p className="status-message">Live settlement amounts are unavailable until the selected charter is read from Studio Next.</p>}
+          /> : <p className="status-message">Live settlement amounts are unavailable until the selected charter is read from Studio Net.</p>}
           {liveRecord && liveRecord.receipt && "receipt_hash" in liveRecord.receipt ? <p className="receipt__hash"><strong>Receipt hash · {liveRecord.receipt.receipt_hash}</strong>Attempt {liveRecord.receipt.attempt_number} · {liveRecord.receipt.outcome} · finalized {humanTime(liveRecord.receipt.finalized_at)}</p> : null}
         </section>
 
@@ -863,15 +857,15 @@ export default function FaultlineApp() {
           <div className="controls__toolbar">
             {wallet.address ? <span className="wallet-address mono">Connected · {wallet.address}</span> : <span className="wallet-address">No wallet connected</span>}
             {!wallet.address ? <button className="button button--quiet button--small" type="button" onClick={() => void wallet.connect()} disabled={wallet.connecting}>{wallet.connecting ? "Connecting…" : "Connect wallet"}</button> : null}
-            {wallet.address && wallet.chainId !== CHAIN_ID ? <button className="button button--quiet button--small" type="button" onClick={() => void wallet.switchNetwork()}>Add / switch to Studio Next</button> : null}
+            {wallet.address && wallet.chainId !== CHAIN_ID ? <button className="button button--quiet button--small" type="button" onClick={() => void wallet.switchNetwork()}>Add / switch to Studio Net</button> : null}
             {wallet.address ? <button className="button button--quiet button--small" type="button" onClick={() => void handleTestFunds()}>Request test GEN</button> : null}
             <button className="button button--quiet button--small" type="button" onClick={() => void refreshFromButton()} disabled={refreshing}>{refreshing ? "Refreshing…" : "Refresh live state"}</button>
             {canPrepareWrites ? <button className="button button--small" type="button" onClick={() => { setShowCreateForm((value) => !value); setShowHandoffForm(false); }}>{showCreateForm ? "Close charter form" : "Create a charter"}</button> : null}
           </div>
           {wallet.error ? <div className="status-message status-message--error" role="alert"><p><strong>Wallet action could not complete.</strong> {wallet.error}</p></div> : null}
-          {testGenMessage ? <div className="status-message" role="status"><p>{testGenMessage} Test GEN is only for Studio Next and has no production value.</p></div> : null}
+          {testGenMessage ? <div className="status-message" role="status"><p>{testGenMessage} Test GEN is only for Studio Net and has no production value.</p></div> : null}
           {!CONTRACT_ADDRESS ? <p className="controls__foot">No contract address is configured. Wallet actions are disabled; synthetic fixture previews remain available for review.</p> : null}
-          {CONTRACT_ADDRESS && !walletOnNetwork && wallet.address ? <p className="controls__foot">Switch the connected wallet to Studio Next (chain {CHAIN_ID}) before signing. Reads stay tied to the configured Studio Next RPC.</p> : null}
+          {CONTRACT_ADDRESS && !walletOnNetwork && wallet.address ? <p className="controls__foot">Switch the connected wallet to Studio Net (chain {CHAIN_ID}) before signing. Reads stay tied to the configured Studio Net RPC.</p> : null}
           {!wallet.available && !wallet.address ? <p className="controls__foot">No injected wallet was detected in this browser. You can still inspect the docket and source fixtures.</p> : null}
 
           {showCreateForm ? <form className="inline-form" onSubmit={(event) => void handleCreate(event)}>
@@ -921,18 +915,18 @@ export default function FaultlineApp() {
 
           {wallet.address && liveRecord && !isRequester && !isNextAgent ? <p className="controls__foot">Connected wallet is not the requester or the agent assigned to the next slot. Inspection remains open; state-changing controls stay locked.</p> : null}
 
-          {preparedAction ? <div className="transaction-box" role="region" aria-label="Transaction fee review">
+          {preparedAction ? <div className="transaction-box" role="region" aria-label="Transaction review">
             <p className="transaction-box__title">Review before the wallet opens</p>
-            <p>Action: <span className="mono">{preparedAction.method}</span> · Quote: {formatGen(preparedAction.prepared.quote.total)} · Source: {preparedAction.prepared.quote.source} · Fee policy: {preparedAction.prepared.quote.verification.status}</p>
-            <p className="transaction-box__fee">The quote is a refundable protocol fee estimate, not a DEMO settlement amount. Confirm only if this action and fee look right.</p>
+            <p>Action: <span className="mono">{preparedAction.method}</span> · Network: Studio Net · Chain: {CHAIN_ID}</p>
+            <p className="transaction-box__fee">Studio Net does not expose a separate fee quote here. Review the action and wallet prompt carefully; DEMO settlement amounts are separate.</p>
             <div className="form-actions"><button className="button" type="button" onClick={() => void confirmAction()}>Sign and submit with wallet</button><button className="button button--quiet" type="button" onClick={() => { setPreparedAction(null); setPanel({ status: "idle" }); }}>Cancel</button></div>
           </div> : null}
 
           {panel.status !== "idle" ? <div className={`transaction-box${panel.status === "error" ? " transaction-box__error" : ""}`} role={panel.status === "error" ? "alert" : "status"}>
-            <p className="transaction-box__title">{panel.status === "preparing" ? "Preparing live fee quote…" : panel.status === "ready" ? "Quote ready. Review before signing." : panel.status === "pending" ? `Transaction ${panel.progress?.phase ?? "submitted"}` : panel.status === "success" ? "Finalized · execution succeeded" : "Transaction needs attention"}</p>
+            <p className="transaction-box__title">{panel.status === "preparing" ? "Preparing transaction review…" : panel.status === "ready" ? "Review ready. Confirm before signing." : panel.status === "pending" ? `Transaction ${panel.progress?.phase ?? "submitted"}` : panel.status === "success" ? "Finalized · execution succeeded" : "Transaction needs attention"}</p>
             {panel.status === "pending" && panel.progress?.genlayerTxId ? <p className="transaction-box__hash mono">{panel.progress.genlayerTxId}</p> : null}
             {panel.status === "pending" ? <p>Lifecycle: {panel.progress?.statusName ?? panel.progress?.phase ?? "pending"} · GenVM execution: {panel.progress?.executionResultName ?? "not reported yet"}</p> : null}
-            {panel.status === "success" ? <p>{actionMessage} · <StudioNextLink href={panel.progress?.genlayerTxId ? explorerTransaction(panel.progress.genlayerTxId) : EXPLORER_URL}>Inspect transaction ↗</StudioNextLink></p> : null}
+            {panel.status === "success" ? <p>{actionMessage} · <StudioNetLink href={panel.progress?.genlayerTxId ? explorerTransaction(panel.progress.genlayerTxId) : EXPLORER_URL}>Inspect transaction ↗</StudioNetLink></p> : null}
             {panel.status === "error" ? <p><strong>State change not confirmed.</strong> {panel.error ?? "The transaction did not reach verified success."} Refresh the contract before retrying.</p> : null}
           </div> : null}
 
@@ -941,7 +935,7 @@ export default function FaultlineApp() {
         </section>
 
         <footer className="footer">
-          <p>FAULTLINE · Studio Next only · chain 61997 · synthetic evidence · DEMO accounting. No production escrow, no real customer data, no percentage blame.</p>
+          <p>FAULTLINE · Studio Net only · chain 61999 · synthetic evidence · DEMO accounting. No production escrow, no real customer data, no percentage blame.</p>
           <p>Fixtures: {fixtureItems.length} · live charters: {index?.total ?? (CONTRACT_ADDRESS ? "unavailable" : "not deployed")}</p>
         </footer>
        </div>
