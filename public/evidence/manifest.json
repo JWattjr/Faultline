@@ -1,0 +1,218 @@
+{
+  "accounting_unit": "DEMO",
+  "cases": [
+    {
+      "key": "accepted",
+      "charter_id": "FLT-ACCEPT-001",
+      "title": "Source-led market brief",
+      "purpose": "Deliver a concise public market brief that follows the supplied source cards, distinguishes fact from uncertainty, and preserves the approved analysis.",
+      "charter_document": "charter-accepted.html",
+      "charter_hash": "5c40bf5ba21c8e77659bc371c90476fcd0c261dd8970c1b6e27a1ede92baf84e",
+      "expected_outcome": "ACCEPTED",
+      "clauses": [
+        {
+          "id": "C1",
+          "text": "Research must accurately summarize and cite both dated source cards supplied with this charter."
+        },
+        {
+          "id": "C2",
+          "text": "Analysis must separate supported observations from uncertainty and carry every material qualification forward."
+        },
+        {
+          "id": "C3",
+          "text": "Delivery must include Executive summary, Evidence, Analysis, Limitations, and References without changing approved facts."
+        }
+      ],
+      "max_retries": 0,
+      "escrow_units": 100000,
+      "primary_slash_bps": 5000,
+      "contributing_slash_bps": 2500,
+      "agents": [
+        {
+          "agent_id": "AGENT-RESEARCH",
+          "slot": "RESEARCH",
+          "role": "Research agent",
+          "bond_units": 1000,
+          "reward_bps": 5000,
+          "responsibility_clause_ids": [
+            "C1"
+          ],
+          "evidence": "accepted-research-evidence.html",
+          "evidence_hash": "305694d701846573b8c7d4e4ec7093b7411bc86ee6a41c3be47dd541cb355847",
+          "artifact": "accepted-research-artifact.html",
+          "artifact_hash": "2bed54ae2320c44b8f42e61745dea375d4e4b979e23ef478b0a43617caec13ab"
+        },
+        {
+          "agent_id": "AGENT-ANALYSIS",
+          "slot": "ANALYSIS",
+          "role": "Analysis agent",
+          "bond_units": 1000,
+          "reward_bps": 3000,
+          "responsibility_clause_ids": [
+            "C2"
+          ],
+          "evidence": "accepted-analysis-evidence.html",
+          "evidence_hash": "92f85ca6bd43371ee89d32a32087f6ae2b5255f7a141d51e70431d4afc44adcd",
+          "artifact": "accepted-analysis-artifact.html",
+          "artifact_hash": "8a7d72577bedfd9d8b006b6d6a645c57cb74f8bc1e0eed585ea0819474173006"
+        },
+        {
+          "agent_id": "AGENT-DELIVERY",
+          "slot": "DELIVERY",
+          "role": "Delivery agent",
+          "bond_units": 1000,
+          "reward_bps": 2000,
+          "responsibility_clause_ids": [
+            "C3"
+          ],
+          "evidence": "accepted-delivery-evidence.html",
+          "evidence_hash": "762b05b891e4fc785180d9deed71c429c35cb8ad47a5848e31cb8b0d33802fc9",
+          "artifact": "accepted-delivery-artifact.html",
+          "artifact_hash": "c66f4191e1e4038f9b90d07dd8661e576b88f12f439c3404f9db59c685ceae18"
+        }
+      ]
+    },
+    {
+      "key": "remediation",
+      "charter_id": "FLT-REMED-001",
+      "title": "Research memo with repair path",
+      "purpose": "Prepare a concise research memo from the supplied source cards and keep the final artifact complete enough for a reviewer to reproduce the key observations.",
+      "charter_document": "charter-remediation.html",
+      "charter_hash": "6f62708b4c1b9e1460eee4099ae0b77865ac269a5d1aed9f2fa55cfe47d378a1",
+      "expected_outcome": "REMEDIATION_REQUIRED",
+      "clauses": [
+        {
+          "id": "C1",
+          "text": "Research must accurately summarize both source cards and preserve their stated limitations."
+        },
+        {
+          "id": "C2",
+          "text": "Analysis must distinguish observed records from any broader inference."
+        },
+        {
+          "id": "C3",
+          "text": "Delivery must include a separate Open questions section naming unresolved evidence gaps."
+        }
+      ],
+      "max_retries": 1,
+      "escrow_units": 100000,
+      "primary_slash_bps": 5000,
+      "contributing_slash_bps": 2500,
+      "agents": [
+        {
+          "agent_id": "AGENT-RESEARCH",
+          "slot": "RESEARCH",
+          "role": "Research agent",
+          "bond_units": 1000,
+          "reward_bps": 5000,
+          "responsibility_clause_ids": [
+            "C1"
+          ],
+          "evidence": "remediation-research-evidence.html",
+          "evidence_hash": "46d886fb639125db07ef135e95ed1216e218b9d64f191de797dc514a2b58a4dc",
+          "artifact": "remediation-research-artifact.html",
+          "artifact_hash": "96ac24b6a4491a0fe040e75931fc32689fb8ec08651718b06dde0ad8a2b3840e"
+        },
+        {
+          "agent_id": "AGENT-ANALYSIS",
+          "slot": "ANALYSIS",
+          "role": "Analysis agent",
+          "bond_units": 1000,
+          "reward_bps": 3000,
+          "responsibility_clause_ids": [
+            "C2"
+          ],
+          "evidence": "remediation-analysis-evidence.html",
+          "evidence_hash": "8323795ed979e1fb754ac7c6dfcfb45d858aad22c6ceac7d465ca911f2a8b16b",
+          "artifact": "remediation-analysis-artifact.html",
+          "artifact_hash": "7e3bf6c8f2e13088561464e8fa60ea7ca3fc3623c72a968fc3f0a1a999ecc176"
+        },
+        {
+          "agent_id": "AGENT-DELIVERY",
+          "slot": "DELIVERY",
+          "role": "Delivery agent",
+          "bond_units": 1000,
+          "reward_bps": 2000,
+          "responsibility_clause_ids": [
+            "C3"
+          ],
+          "evidence": "remediation-delivery-evidence.html",
+          "evidence_hash": "b9d6a6434bc7c627ba7e02b9415315af1ac6ac7d30eaa2b988c47ed46c1eead4",
+          "artifact": "remediation-delivery-artifact.html",
+          "artifact_hash": "3a1036a9f304c2e7622083ffde94bbb74c4e974f3d2dede34d202a4038dfcdaf"
+        }
+      ]
+    },
+    {
+      "key": "breached",
+      "charter_id": "FLT-BREACH-001",
+      "title": "Unsupported source claim trace",
+      "purpose": "Verify source claims before recommending them, preserve source-validation findings in analysis, and deliver only the approved analysis.",
+      "charter_document": "charter-breached.html",
+      "charter_hash": "feea261157c851ba9b6ed2a6a8b15f318a473c3922ebb2020691774401ba2ca2",
+      "expected_outcome": "BREACHED",
+      "clauses": [
+        {
+          "id": "C1",
+          "text": "Research must not state a numeric claim unless a submitted source directly supports that exact claim."
+        },
+        {
+          "id": "C2",
+          "text": "Analysis must run the source-validation check and remove or flag any claim that lacks direct support."
+        },
+        {
+          "id": "C3",
+          "text": "Delivery must format the approved analysis without adding, removing, or changing factual claims."
+        }
+      ],
+      "max_retries": 0,
+      "escrow_units": 100000,
+      "primary_slash_bps": 5000,
+      "contributing_slash_bps": 2500,
+      "agents": [
+        {
+          "agent_id": "AGENT-RESEARCH",
+          "slot": "RESEARCH",
+          "role": "Research agent",
+          "bond_units": 1000,
+          "reward_bps": 5000,
+          "responsibility_clause_ids": [
+            "C1"
+          ],
+          "evidence": "breached-research-evidence.html",
+          "evidence_hash": "75f7fabe7e1f412c7e712712003dead9e074128a2f12b57ef150bbc2f192e27a",
+          "artifact": "breached-research-artifact.html",
+          "artifact_hash": "591c36f3ac83f2652d60d2cd8bf55670edf9e09d72561d84d032c3b114908430"
+        },
+        {
+          "agent_id": "AGENT-ANALYSIS",
+          "slot": "ANALYSIS",
+          "role": "Analysis agent",
+          "bond_units": 1000,
+          "reward_bps": 3000,
+          "responsibility_clause_ids": [
+            "C2"
+          ],
+          "evidence": "breached-analysis-evidence.html",
+          "evidence_hash": "7535be63a137be0c108cf9d454eaa76030262e1b949255c15f65022ecb784426",
+          "artifact": "breached-analysis-artifact.html",
+          "artifact_hash": "fd9e0082e45eee5fb5b8c9bf884e64dea59ef74b851b086e86cc71a9a23f87bf"
+        },
+        {
+          "agent_id": "AGENT-DELIVERY",
+          "slot": "DELIVERY",
+          "role": "Delivery agent",
+          "bond_units": 1000,
+          "reward_bps": 2000,
+          "responsibility_clause_ids": [
+            "C3"
+          ],
+          "evidence": "breached-delivery-evidence.html",
+          "evidence_hash": "69f7849fe7bdcec9c85ecb003f2a8cc51628d6c94452e6dde68feba74bcfe56b",
+          "artifact": "breached-delivery-artifact.html",
+          "artifact_hash": "22527510bf37c5f946696d86e8628713720eacea1196268e2ae5aa29102d866c"
+        }
+      ]
+    }
+  ]
+}

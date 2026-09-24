@@ -1,0 +1,17 @@
+.pytest_cache
+.venv
+node_modules
+.next
+artifacts
+.impeccable/review
+screenshots
+playwright-report
+test-results
+tests
+docs
+.agents
+.codex
+.env
+.env.*
+!.env.example
+deployments/integration*.json

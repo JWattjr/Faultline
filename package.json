@@ -1,0 +1,50 @@
+{
+  "name": "faultline",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Faultline: GenLayer pipeline accountability and deterministic DEMO settlement.",
+  "engines": { "node": ">=22.13.0" },
+  "scripts": {
+    "dev": "node scripts/next.mjs dev",
+    "build": "node scripts/generate-fixtures.mjs && node scripts/next.mjs build",
+    "start": "node scripts/next.mjs start",
+    "setup:python": "node scripts/setup-python.mjs",
+    "contract:lint": "node scripts/python.mjs -X utf8 -m genvm_linter.cli check contracts/faultline.py",
+    "contract:schema": "node scripts/python.mjs -X utf8 -m genvm_linter.cli schema contracts/faultline.py --json --output artifacts/faultline.abi.json",
+    "test:direct": "node scripts/python.mjs -X utf8 -m pytest -p no:cacheprovider tests/direct -q",
+    "test:integration": "tsx scripts/test-integration.ts",
+    "lint": "eslint app components lib scripts",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json --noEmit",
+    "check": "npm run fixtures:build && npm run contract:lint && npm run contract:schema && npm run test:direct && npm run lint && npm run typecheck && npm run build && npm run test:ui && npm run test:responsive",
+    "fixtures:build": "node scripts/generate-fixtures.mjs",
+    "deploy": "tsx scripts/deploy.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "verify:proof": "tsx scripts/verify-proof.ts",
+    "profile:fees": "tsx scripts/profile-fees.ts",
+    "deploy:frontend": "tsx scripts/deploy-frontend.ts",
+    "reset:studio": "tsx scripts/reset-studio.ts",
+    "test:ui": "node scripts/test-ui.mjs",
+    "test:responsive": "node scripts/test-responsive.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/ibm-plex-sans": "5.2.6",
+    "@fontsource-variable/newsreader": "5.2.6",
+    "@genlayer/transaction-kit": "0.1.0-rc.2",
+    "@genlayer/transaction-kit-react": "0.1.0-rc.2",
+    "genlayer-js": "2.0.0-rc.1",
+    "next": "16.3.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.1",
+    "eslint-config-next": "16.3.5",
+    "playwright-core": "1.56.1",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  }
+}
