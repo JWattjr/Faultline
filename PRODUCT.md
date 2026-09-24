@@ -26,14 +26,15 @@ Faultline adjudicates the pipeline as a whole. It does not assign percentage bla
 
 ## Operating Context
 
-The MVP is an authorization and settlement demonstration on GenLayer Studio Next, chain 61997. It uses public HTTPS evidence pages and wallet interaction for transactions. Review is wallet-free. Three clearly marked synthetic reviewer cases demonstrate acceptance, repair, and terminal breach.
+The MVP is an authorization and settlement demonstration on GenLayer Studio Next, chain 61997. It uses public HTTPS evidence pages and wallet interaction for transactions. Review is wallet-free. Four clearly marked synthetic reviewer cases demonstrate acceptance, repair, validator-judged breach, and deterministic breach when submitted agent evidence has changed.
 
 ## Capabilities and Constraints
 
 - Exactly three fixed slots: `RESEARCH`, `ANALYSIS`, and `DELIVERY`.
 - A requester-authored charter is sealed before pipeline evidence is submitted and cannot then be changed.
 - Ordered handoffs bind attempt numbers, output hashes, evidence URLs, and the previous output hash.
-- Validators independently retrieve the charter and submitted artifacts, reassess the same clauses, normalize the result, and compare substantive fields.
+- Each accepted handoff records edge checks for the output hash chain, submission time, and evidence-base URL. Validators independently retrieve the charter and submitted artifacts, reassess the clauses, normalize the result, and agree on outcome plus agent responsibility roles; clause-citation differences do not change that settlement comparison.
+- A fetched HTTP 200 agent evidence or artifact whose SHA-256 differs from its submitted digest deterministically settles as `BREACHED` with basis `EVIDENCE_TAMPERED`, outside the LLM judgment. The mismatched submitted and fetched hashes remain inspectable. Charter document mismatches and transient network/HTTP failures retain their strict/retryable behavior.
 - The contract owns lifecycle transitions and integer basis-point accounting. No real assets are held or transferred.
 - Every balance, reward, escrow, and bond is a simulated `DEMO` accounting unit.
 - Studio Next is the only target network. Bradbury is out of scope.
@@ -42,7 +43,7 @@ The MVP is an authorization and settlement demonstration on GenLayer Studio Next
 
 ## Brand Commitments
 
-The product is named Faultline. Its interface follows the supplied forensic trace dossier direction: warm paper-like surfaces, graphite text, restrained red/orange for breaches, a cool verification color for accepted outcomes, editorial technical typography, precise rules and evidence marks, and no neon, glass, gradients, generic crypto dashboard, or node-graph clone. It should feel fun, friendly, and lightly cute through its voice and small interface details while keeping the evidence readable and avoiding fabricated scene illustrations.
+Faultline uses an original friendly filing-desk world: a sky-blue surround, a cream paper docket with a thick irregular dark edge, folder tabs that jump to real sections, dashed dividers, capsule summary labels, and three original SVG agent mascots. Handwritten lowercase display headings pair with IBM Plex Mono for body text, controls, and data. Accepted, repair, breach, and verification states use readable green, amber, red, and blue surfaces alongside explicit labels. The page stays evidence-first and never borrows franchise art or presents synthetic material as live proof.
 
 ## Evidence on Hand
 
@@ -58,4 +59,4 @@ There is no real customer or production-incident evidence. The three evidence fl
 
 ## Accessibility & Inclusion
 
-Support keyboard navigation, visible focus, semantic controls, accessible contrast, reduced motion, and touch targets of at least 44px. Support 1440px and 1280px desktop/laptop layouts and a 390px mobile viewport without horizontal overflow.
+Support keyboard navigation, visible focus, semantic controls, accessible contrast, reduced motion, and touch targets of at least 44px. Support 1440px and 1280px desktop/laptop layouts and a 375px mobile viewport without horizontal overflow. A keyboard-operable **Plain numbers** view exposes responsibility and accounting as text and tables without mascots or visual bars.

@@ -53,6 +53,7 @@ export type FixtureAgent = {
   responsibility_clause_ids: string[];
   evidence: string;
   evidence_hash: string;
+  published_evidence_hash?: string;
   artifact: string;
   artifact_hash: string;
 };
@@ -64,6 +65,7 @@ export type FixtureCase = {
   charter_document: string;
   charter_hash: string;
   expected_outcome: "ACCEPTED" | "REMEDIATION_REQUIRED" | "BREACHED";
+  expected_basis: "EVIDENCE_TAMPERED" | "VALIDATOR_JUDGMENT";
   clauses: Array<{ id: string; text: string }>;
   max_retries: number;
   escrow_units: number;
@@ -88,7 +90,9 @@ export type IntegrationProofCase = {
   charter_id: string;
   title: string;
   expected_outcome: FixtureCase["expected_outcome"];
+  expected_basis: FixtureCase["expected_basis"];
   actual_outcome: string;
+  actual_basis: FixtureCase["expected_basis"];
   final_state: string;
   receipt_hash?: string;
   transactions: Record<string, TxOutcome>;
@@ -237,19 +241,33 @@ export function fixtureBaseUrl(): string {
   const value = process.env.FIXTURE_BASE_URL?.trim().replace(/\/$/, "");
   if (!value) throw new Error("Set FIXTURE_BASE_URL to the public HTTPS origin serving Faultline's synthetic evidence pages before deploy or seed.");
   const url = new URL(value);
-  if (url.protocol !== "https:" || url.pathname !== "") throw new Error("FIXTURE_BASE_URL must be an HTTPS origin without a path.");
+  if (url.protocol !== "https:" || url.pathname !== "/" || url.search || url.hash) throw new Error("FIXTURE_BASE_URL must be an HTTPS origin without a path.");
   if (/example\.com|faultline\.vercel\.app/i.test(url.hostname)) throw new Error("FIXTURE_BASE_URL is still a placeholder; use the actual deployed evidence host.");
   return value;
 }
 
 export async function loadFixtureManifest(): Promise<FixtureManifest> {
   const manifest = readJson<FixtureManifest>(resolve(ROOT, "public", "evidence", "manifest.json"));
-  if (!manifest || manifest.accounting_unit !== "DEMO" || manifest.cases.length !== 3) throw new Error("Build the three synthetic reviewer fixtures before deploy or seed (npm run fixtures:build).");
+  if (!manifest || manifest.accounting_unit !== "DEMO" || manifest.cases.length !== 4) throw new Error("Build the four synthetic reviewer fixtures before deploy or seed (npm run fixtures:build).");
   return manifest;
 }
 
 export async function assertPublicFixtures(baseUrl: string, manifest: FixtureManifest): Promise<void> {
   const base = `${baseUrl}/evidence/`;
+  const tamperDeclarations = manifest.cases.flatMap((item) => item.agents.flatMap((agent) =>
+    agent.published_evidence_hash ? [{ item, agent }] : []
+  ));
+  const tamperCases = manifest.cases.filter((item) => item.expected_basis === "EVIDENCE_TAMPERED");
+  if (
+    manifest.cases.length !== 4 || tamperCases.length !== 1 ||
+    tamperCases[0]?.charter_id !== "FLT-TAMPER-001" || tamperDeclarations.length !== 1 ||
+    tamperDeclarations[0]?.item.charter_id !== "FLT-TAMPER-001" ||
+    tamperDeclarations[0]?.agent.published_evidence_hash === tamperDeclarations[0]?.agent.evidence_hash
+  ) {
+    throw new Error("The fixture manifest must declare exactly one changed evidence page for FLT-TAMPER-001.");
+  }
+  const declaredMismatch = tamperDeclarations[0]!;
+  let mismatchCount = 0;
   const expected = manifest.cases.flatMap((item) => [
     [item.charter_document, item.charter_hash],
     ...item.agents.flatMap((agent) => [[agent.evidence, agent.evidence_hash], [agent.artifact, agent.artifact_hash]]),
@@ -259,8 +277,16 @@ export async function assertPublicFixtures(baseUrl: string, manifest: FixtureMan
     const response = await fetch(url, { redirect: "error" });
     if (!response.ok) throw new Error(`Synthetic evidence is not public (HTTP ${response.status}): ${url}`);
     const actualHash = createHash("sha256").update(Buffer.from(await response.arrayBuffer())).digest("hex");
-    if (actualHash !== expectedHash) throw new Error(`Hosted fixture hash does not match the local manifest: ${url}`);
+    if (filename === declaredMismatch.agent.evidence) {
+      if (actualHash === expectedHash || actualHash !== declaredMismatch.agent.published_evidence_hash) {
+        throw new Error(`Hosted tamper fixture does not match its declared submitted/fetched hashes: ${url}`);
+      }
+      mismatchCount += 1;
+    } else if (actualHash !== expectedHash) {
+      throw new Error(`Hosted fixture hash does not match the local manifest: ${url}`);
+    }
   }
+  if (mismatchCount !== 1) throw new Error(`Expected exactly one intentional evidence hash mismatch; found ${mismatchCount}.`);
 }
 
 export function unpackJson<T>(value: unknown): T {

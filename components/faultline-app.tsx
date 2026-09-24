@@ -10,8 +10,10 @@ import {
   type Charter,
   type Clause,
   type ContractIndex,
+  type EdgeCheck,
   type Handoff,
   type LiveRecord,
+  type TamperedSource,
   checkStudioNext,
   explorerContract,
   explorerTransaction,
@@ -29,6 +31,7 @@ type FixtureAgent = Agent & {
   evidence_hash: string;
   artifact: string;
   artifact_hash: string;
+  published_evidence_hash?: string;
 };
 type FixtureCase = {
   key: string;
@@ -38,6 +41,7 @@ type FixtureCase = {
   charter_document: string;
   charter_hash: string;
   expected_outcome: "ACCEPTED" | "REMEDIATION_REQUIRED" | "BREACHED";
+  expected_basis: "EVIDENCE_TAMPERED" | "VALIDATOR_JUDGMENT";
   clauses: Clause[];
   max_retries: number;
   escrow_units: number;
@@ -63,7 +67,6 @@ type CaseMode = "live" | "preview";
 
 const SLOT_ORDER = ["RESEARCH", "ANALYSIS", "DELIVERY"] as const;
 const SLOT_LABELS: Record<string, string> = { RESEARCH: "Research", ANALYSIS: "Analysis", DELIVERY: "Delivery" };
-const SLOT_MARKS: Record<string, string> = { RESEARCH: "R", ANALYSIS: "A", DELIVERY: "D" };
 const EXPECTED_BREACH_ROLES: Record<string, string> = {
   "AGENT-RESEARCH": "PRIMARY",
   "AGENT-ANALYSIS": "CONTRIBUTING",
@@ -120,6 +123,35 @@ function RoleTag({ role, expected = false }: { role: string; expected?: boolean 
   return <span className={`role role--${className}`}>{expected ? `Expected ${role}` : role}</span>;
 }
 
+function Mascot({ slot, decorative = false }: { slot: string; decorative?: boolean }) {
+  const name = slot === "RESEARCH" ? "Fern" : slot === "ANALYSIS" ? "Pip" : "Posty";
+  const shared = { stroke: "#24241f", strokeWidth: 3.2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  return <svg className={`mascot mascot--${slot.toLowerCase()}`} viewBox="0 0 64 64" aria-hidden={decorative ? "true" : undefined} role={decorative ? undefined : "img"} aria-label={decorative ? undefined : `${name}, ${SLOT_LABELS[slot]?.toLowerCase() ?? "agent"} mascot`}>
+    {slot === "RESEARCH" ? <>
+      <path d="M13 31c0-12 8-20 19-20s19 8 19 20v14c0 7-6 12-19 12S13 52 13 45z" fill="#66b77b" {...shared} />
+      <path d="M24 13c-8-8-15-3-12 6 6 2 10 0 12-6m8-2c1-9 9-11 12-4-2 6-6 8-12 4" fill="#a9d980" {...shared} />
+      <ellipse cx="25" cy="34" rx="2" ry="3" fill="#24241f" /><ellipse cx="40" cy="34" rx="2" ry="3" fill="#24241f" />
+      <path d="M27 43q5 5 10 0" fill="none" {...shared} />
+    </> : slot === "ANALYSIS" ? <>
+      <path d="M11 25q0-12 13-12h16q13 0 13 12v21q0 10-12 10H23q-12 0-12-10z" fill="#77b8d2" {...shared} />
+      <path d="m18 16-4-8 12 4m24 4 4-8-12 4" fill="#a9d4df" {...shared} />
+      <circle cx="25" cy="33" r="2.3" fill="#24241f" /><circle cx="40" cy="33" r="2.3" fill="#24241f" />
+      <path d="M27 42q5 4 10 0" fill="none" {...shared} />
+      <path d="m32 18 2 4 4 .5-3 3 .8 4.2-3.8-2-3.8 2L29 25.5l-3-3 4-.5z" fill="#fff0a5" {...shared} />
+    </> : <>
+      <path d="M12 24q0-10 11-10h19q10 0 10 10v24q0 8-9 8H21q-9 0-9-8z" fill="#edaa54" {...shared} />
+      <path d="m14 25 18 14 18-14" fill="#ffd27d" {...shared} />
+      <circle cx="25" cy="32" r="2.2" fill="#24241f" /><circle cx="40" cy="32" r="2.2" fill="#24241f" />
+      <path d="M28 42q4 3 8 0" fill="none" {...shared} />
+      <path d="M10 48q-6 0-5-7m49 7q6 0 5-7" fill="none" {...shared} />
+    </>}
+  </svg>;
+}
+
+function EdgeCheckMark({ passed }: { passed: boolean }) {
+  return <span className="edge-pill__mark" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false">{passed ? <path d="m3 8 3.1 3.2L13 4.7" /> : <><path d="M8 2.5v6" /><circle cx="8" cy="12" r=".7" /></>}</svg></span>;
+}
+
 function MetaCell({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return <div className="meta-cell"><span className="meta-cell__label">{label}</span><span className={`meta-cell__value${mono ? " mono" : ""}`} title={value}>{value || "—"}</span></div>;
 }
@@ -145,6 +177,8 @@ function TraceRow({
   role,
   expected,
   live,
+  edgeCheck,
+  tamperedSource,
 }: {
   index: number;
   slot: string;
@@ -159,12 +193,14 @@ function TraceRow({
   role: string;
   expected: boolean;
   live: boolean;
+  edgeCheck?: EdgeCheck;
+  tamperedSource?: TamperedSource;
 }) {
   const submitted = live ? Boolean(handoff) : true;
   return (
     <div className="trace-row">
       <div className="trace-row__agent">
-        <span className={`trace-row__seal trace-row__seal--${slot.toLowerCase()}`} aria-hidden="true">{SLOT_MARKS[slot] ?? "·"}</span>
+        <Mascot slot={slot} />
         <span><span className="trace-row__slot">{SLOT_LABELS[slot] ?? slot}</span><span className="trace-row__role">{wallet ? shortHash(wallet, 6) : "No wallet in preview"}</span></span>
       </div>
       {submitted ? (
@@ -183,7 +219,17 @@ function TraceRow({
           {submittedAt ? <time dateTime={new Date(submittedAt * 1000).toISOString()}>{humanTime(submittedAt)}</time> : <span className="not-submitted">Fixture page</span>}
         </> : <span className="not-submitted">Awaiting {SLOT_LABELS[slot]?.toLowerCase()}</span>}
         <RoleTag role={role} expected={expected} />
+        {edgeCheck ? <span className={`edge-pill edge-pill--${edgeCheck.status.toLowerCase()}`} aria-label={`Handoff edge checks ${edgeCheck.status.toLowerCase()}`}>
+          <EdgeCheckMark passed={edgeCheck.status === "PASSED"} />
+          {edgeCheck.status === "PASSED" ? "Edge checks passed" : "Edge check failed"}
+        </span> : expected ? <span className="edge-pill edge-pill--passed"><EdgeCheckMark passed />Expected · edge checks passed</span> : null}
       </div>
+      {tamperedSource ? <div className="hash-mismatch">
+        <strong>Evidence changed after submission</strong>
+        <span className="hash-mismatch__kind">{tamperedSource.source_kind.toLowerCase()} · fetched over HTTPS</span>
+        <span className="hash-mismatch__hash"><span>Submitted</span><code>{tamperedSource.submitted_hash}</code></span>
+        <span className="hash-mismatch__hash"><span>Fetched</span><code>{tamperedSource.fetched_hash}</code></span>
+      </div> : null}
     </div>
   );
 }
@@ -204,7 +250,9 @@ function MoneyTable({
   fixture?: FixtureCase;
 }) {
   if (!agents.length) return <p className="status-message">Settlement details appear when the charter record loads.</p>;
-  const expectedRoles = EXPECTED_BREACH_ROLES;
+  const expectedRoles = fixture?.expected_basis === "EVIDENCE_TAMPERED"
+    ? Object.fromEntries(agents.map((agent) => [agent.agent_id, fixture.agents.find((item) => item.agent_id === agent.agent_id)?.published_evidence_hash ? "PRIMARY" : "CLEAR"]))
+    : EXPECTED_BREACH_ROLES;
   const rows = agents.map((agent) => {
     let reward = accounting?.agent_rewards?.[agent.agent_id] ?? 0;
     let returned = accounting?.bonds_returned?.[agent.agent_id] ?? 0;
@@ -274,6 +322,7 @@ export default function FaultlineApp() {
   const [refreshing, setRefreshing] = useState(false);
   const [proofFacts, setProofFacts] = useState<{ hash: string; facts: TransactionFacts } | null>(null);
   const [proofFactsError, setProofFactsError] = useState<{ hash: string; message: string } | null>(null);
+  const [plainNumbers, setPlainNumbers] = useState(false);
   const [preparedAction, setPreparedAction] = useState<PreparedAction | null>(null);
   const [panel, setPanel] = useState<TransactionPanel>({ status: "idle" });
   const [actionMessage, setActionMessage] = useState("");
@@ -384,10 +433,11 @@ export default function FaultlineApp() {
   }, []);
 
   useEffect(() => {
-    if (!manifest || selection || (/^0x[\da-fA-F]{40}$/.test(CONTRACT_ADDRESS) && index === null)) return;
-    if (!/^0x[\da-fA-F]{40}$/.test(CONTRACT_ADDRESS) && manifest.cases[0]) setSelection(`preview:${manifest.cases[0].charter_id}`);
+    const hasConfiguredContract = /^0x[\da-fA-F]{40}$/.test(CONTRACT_ADDRESS);
+    if (!manifest || selection || (hasConfiguredContract && index === null && network !== "offline" && !indexError)) return;
+    if ((!hasConfiguredContract || network === "offline" || Boolean(indexError)) && manifest.cases[0]) setSelection(`preview:${manifest.cases[0].charter_id}`);
     else if (index && index.items.length === 0 && manifest.cases[0]) setSelection(`preview:${manifest.cases[0].charter_id}`);
-  }, [manifest, selection, index]);
+  }, [manifest, selection, index, network, indexError]);
 
   const selectionMode: CaseMode = selection.startsWith("live:") ? "live" : "preview";
   const selectedCharterId = selection.split(":").slice(1).join(":");
@@ -445,9 +495,14 @@ export default function FaultlineApp() {
   const traceRows = agents.map((agent, position) => {
     const handoff = traceAttempt?.handoffs?.[position] ?? null;
     const fixtureAgent = preview ? fixture?.agents[position] : undefined;
+    const changedSource = preview && fixtureAgent?.published_evidence_hash
+      ? { agent_id: agent.agent_id, source_kind: "EVIDENCE" as const, url: evidenceHref(fixtureAgent.evidence), submitted_hash: fixtureAgent.evidence_hash, fetched_hash: fixtureAgent.published_evidence_hash }
+      : traceAttempt?.tampered_sources?.find((item) => item.agent_id === agent.agent_id);
     const role = liveRecord
       ? responsible.find((item) => item.agent_id === agent.agent_id)?.role ?? ""
-      : preview && fixture?.expected_outcome === "BREACHED" ? EXPECTED_BREACH_ROLES[agent.agent_id] ?? "" : "";
+      : preview && fixture?.expected_outcome === "BREACHED"
+        ? fixture.expected_basis === "EVIDENCE_TAMPERED" ? changedSource ? "PRIMARY" : "CLEAR" : EXPECTED_BREACH_ROLES[agent.agent_id] ?? ""
+        : "";
     const previousHash = handoff?.previous_output_hash ?? (preview && position > 0 ? fixture?.agents[position - 1]?.artifact_hash ?? "" : "");
     return {
       agent,
@@ -459,8 +514,14 @@ export default function FaultlineApp() {
       evidenceUrl: handoff?.evidence_url ?? (fixtureAgent ? evidenceHref(fixtureAgent.evidence) : "#"),
       artifactUrl: handoff?.artifact_url ?? (fixtureAgent ? evidenceHref(fixtureAgent.artifact) : "#"),
       submittedAt: handoff?.submitted_at ?? 0,
+      edgeCheck: handoff?.edge_check,
+      tamperedSource: changedSource,
     };
   });
+
+  const edgeChecksAllPassed = traceRows.length === SLOT_ORDER.length && traceRows.every((row) => expected ? true : row.edgeCheck?.status === "PASSED");
+  const assessmentBasis = liveRecord ? traceAttempt?.basis : preview ? fixture?.expected_basis : undefined;
+  const totalBonds = agents.reduce((sum, agent) => sum + (Number.isFinite(agent.bond_units) ? agent.bond_units : 0), 0);
 
   const prepareAction = useCallback(async (method: string, args: unknown[], targetCharterId?: string) => {
     setActionMessage("");
@@ -568,10 +629,14 @@ export default function FaultlineApp() {
       return { label: "Not flagged", tone: "repair", assigned: owner?.slot ?? "No role assigned" };
     }
     if (!preview || !fixture) return { label: "Unassessed", tone: "repair", assigned: owner?.slot ?? "—" };
-    const isViolated = fixture.expected_outcome === "BREACHED" && ["C1", "C2"].includes(clauseId);
+    const tamperCase = fixture.expected_basis === "EVIDENCE_TAMPERED";
+    const ownerChanged = Boolean(fixture.agents.find((agent) => agent.agent_id === owner?.agent_id)?.published_evidence_hash);
+    const isViolated = fixture.expected_outcome === "BREACHED" && (tamperCase ? ownerChanged : ["C1", "C2"].includes(clauseId));
     const needsRepair = fixture.expected_outcome === "REMEDIATION_REQUIRED" && clauseId === "C3";
     const isMet = fixture.expected_outcome === "ACCEPTED";
-    const expectedRole = fixture.expected_outcome === "BREACHED" ? EXPECTED_BREACH_ROLES[owner?.agent_id ?? ""] : "";
+    const expectedRole = fixture.expected_outcome === "BREACHED"
+      ? tamperCase ? (ownerChanged ? "PRIMARY" : "CLEAR") : EXPECTED_BREACH_ROLES[owner?.agent_id ?? ""]
+      : "";
     return {
       label: isViolated ? "Expected violation" : needsRepair ? "Expected repair" : isMet ? "Expected satisfied" : "Not implicated",
       tone: isViolated ? "violated" : needsRepair ? "repair" : isMet ? "met" : "repair",
@@ -596,12 +661,18 @@ export default function FaultlineApp() {
       </header>
 
       <main className="page" id="main">
+       <div className="paper-card" data-plain-numbers={plainNumbers}>
+        <nav className="folder-tabs" aria-label="Docket sections">
+          <a href="#docket-title">charter</a><a href="#trace-section">trace</a><a href="#receipt-title">receipts</a><a href="#controls-title">controls</a>
+        </nav>
         <section className="intro" aria-labelledby="page-title">
           <div>
             <h1 id="page-title">The handoff, on record.</h1>
             <p className="intro__purpose">Faultline follows one frozen charter across Research, Analysis, and Delivery—then lets GenLayer judge the evidence before contract code settles the result.</p>
           </div>
-          <p className="intro__note">One charter. Three handoffs. No percentage blame. We keep the receipts; the contract does the math.</p>
+          <div className="intro__aside"><p className="intro__note">One charter. Three handoffs. No percentage blame. We keep the receipts; the contract does the math.</p>
+            <button className="plain-toggle" type="button" aria-pressed={plainNumbers} onClick={() => setPlainNumbers((value) => !value)}>{plainNumbers ? "Plain numbers: on" : "Plain numbers"}</button>
+          </div>
         </section>
 
         <div className="environment" aria-label="Deployment details">
@@ -617,6 +688,13 @@ export default function FaultlineApp() {
         {networkError ? <div className="status-message status-message--error" role="alert"><span className="status-dot status-dot--bad" aria-hidden="true" /><p><strong>Studio Next could not be reached.</strong> {networkError} Live state is unavailable. Any fixture shown below is a separate synthetic preview.</p></div> : null}
         {indexError && CONTRACT_ADDRESS ? <div className="status-message status-message--error" role="alert"><span className="status-dot status-dot--bad" aria-hidden="true" /><p><strong>Contract read unavailable.</strong> {indexError} Refresh after the chain is reachable; fixture preview remains separately labeled.</p></div> : null}
         {manifestError ? <div className="status-message status-message--error" role="alert"><span className="status-dot status-dot--bad" aria-hidden="true" /><p><strong>Synthetic fixture files could not be loaded.</strong> {manifestError}</p></div> : null}
+
+        <section className="stat-pills" aria-label="Selected charter summary">
+          <div className="stat-pill"><span>Escrow</span><strong>{charter || fixture ? `${formatUnits(charter?.escrow_units ?? fixture?.escrow_units ?? 0)} DEMO` : "—"}</strong></div>
+          <div className="stat-pill"><span>Agents</span><strong>{agents.length ? `${agents.length} assigned` : "—"}</strong></div>
+          <div className="stat-pill"><span>Bond pool</span><strong>{agents.length ? `${formatUnits(totalBonds)} DEMO` : "—"}</strong></div>
+          <div className={`stat-pill stat-pill--${tone}`}><span>Outcome</span><strong>{titleCase(outcomeState)}</strong></div>
+        </section>
 
         <div className="workbench">
           <aside className="register" aria-label="Charter register">
@@ -642,7 +720,7 @@ export default function FaultlineApp() {
             <p className="register__help">Choose a live charter or a clearly marked reviewer fixture. A fixture never stands in for a contract read.</p>
           </aside>
 
-          <section className="docket" aria-labelledby="docket-title" aria-live="polite">
+          <section className="docket" id="trace-section" aria-labelledby="docket-title" aria-live="polite">
             <div className="docket__topline">
               <span className="mono">{selectedCharterId || "FAULTLINE / NO SELECTION"}</span>
               <Stamp tone={expected ? tone : outcomeTone(charter?.latest_outcome ?? "")}>{expected ? `EXPECTED · ${fixture?.expected_outcome ?? "FIXTURE"}` : charter ? titleCase(charter.state) : "LIVE READ PENDING"}</Stamp>
@@ -681,14 +759,24 @@ export default function FaultlineApp() {
                 role={row.role}
                 expected={expected && Boolean(row.role)}
                 live={!expected}
+                edgeCheck={row.edgeCheck}
+                tamperedSource={row.tamperedSource}
               />) : <div className="status-message" role="status"><span className="status-dot" aria-hidden="true" /><p>Three assigned agent slots will appear after the charter is read.</p></div>}
             </div>
+            {edgeChecksAllPassed ? <section className={`verdict-board verdict-board--${tone}`} aria-label="Handoff checks and responsibility">
+              <div className="verdict-board__head"><div><h3>{outcomeState === "BREACHED" ? "Every handoff passed its checks. The result is a breach." : "Every handoff passed its own checks."}</h3><p>Hash chain · submission time · evidence base</p></div><Stamp tone={tone}>{outcomeState}</Stamp></div>
+              <div className="role-rows" aria-label="Fixed responsibility roles; bar lengths do not represent percentages">
+                {traceRows.map((row) => <div className="role-row" key={`role-${row.agent.agent_id}`}><Mascot slot={row.agent.slot} decorative /><span className="role-row__name">{SLOT_LABELS[row.agent.slot]}</span><RoleTag role={row.role || "CLEAR"} expected={expected} /><span className={`role-bar role-bar--${(row.role || "CLEAR").toLowerCase()}`} aria-hidden="true"><i /></span></div>)}
+              </div>
+              <table className="role-plain-table"><thead><tr><th>Agent</th><th>Responsibility role</th><th>Clause IDs</th></tr></thead><tbody>{traceRows.map((row) => <tr key={`plain-${row.agent.agent_id}`}><td>{SLOT_LABELS[row.agent.slot]}</td><td>{row.role || "CLEAR"}{expected ? " · expected" : ""}</td><td>{responsible.find((item) => item.agent_id === row.agent.agent_id)?.clause_ids.join(", ") || row.agent.responsibility_clause_ids.join(", ") || "—"}</td></tr>)}</tbody></table>
+              <p className="verdict-board__foot">Responsibility roles are fixed categories. Bar lengths are decorative and do not mean blame percentages.</p>
+            </section> : null}
             {expected ? <p className="demo-note">Synthetic reviewer fixture · not evidence of a real customer or production incident · {fixture?.charter_id} · Attempt 1. Open each evidence page to inspect its source and output.</p> : null}
             <div className="trace-key" aria-label="Trace legend"><span><i className="key-dot key-dot--source" aria-hidden="true" />Submitted evidence</span><span><i className="key-dot key-dot--artifact" aria-hidden="true" />Agent output</span><span><i className="key-dot" aria-hidden="true" />Previous-output link</span></div>
           </section>
         </div>
 
-        <section className="detail-grid" aria-label="Clause and validator detail">
+        <section className="detail-grid" id="clause-section" aria-label="Clause and validator detail">
           <div>
             <div className="section-title"><h2>Clause inspector</h2><p>{expected ? "Expected fixture mapping" : "Frozen charter text"}</p></div>
             <div className="clause-list">
@@ -721,8 +809,13 @@ export default function FaultlineApp() {
               <strong>{expected ? `EXPECTED · ${fixture?.expected_outcome ?? "—"}` : charter?.latest_outcome || (charter?.state === "READY_FOR_REVIEW" ? "READY FOR REVIEW" : "NO OUTCOME YET")}</strong>
               <Stamp tone={expected ? tone : outcomeTone(charter?.latest_outcome ?? "")}>{expected ? "Fixture" : charter?.latest_outcome ? "On chain" : "Pending"}</Stamp>
             </div>
+            {assessmentBasis ? <div className={`basis-note${assessmentBasis === "EVIDENCE_TAMPERED" ? " basis-note--tampered" : ""}`}>
+              <span>Assessment basis</span><strong>{assessmentBasis}</strong>
+              <p>{assessmentBasis === "EVIDENCE_TAMPERED" ? expected ? "This fixture models an HTTP 200 content-hash mismatch that deterministically maps to BREACHED, outside LLM judgment. This basis is separate from validator judgment." : "The contract detected an HTTP 200 content-hash mismatch and selected the breach outcome deterministically. This basis is separate from validator judgment." : "Validators compared the normalized judgment. Clause citation differences do not change the outcome and responsibility-role settlement key."}</p>
+            </div> : null}
             <p className="consensus__copy">{outcomeCopy(outcomeState)} {expected ? "This fixture predicts a reviewer scenario; it is not a validator transaction." : "Summaries are derived from normalized outcome and contract state, not generated narration."}</p>
             <dl className="fact-list">
+              <div className="fact-row"><dt>Assessment basis</dt><dd>{assessmentBasis ?? "Not recorded"}</dd></div>
               <div className="fact-row"><dt>Lifecycle</dt><dd>{transactionFacts?.status ?? selectedProofTx?.statusName ?? (expected ? "No transaction · fixture only" : "No adjudication transaction recorded")}</dd></div>
               <div className="fact-row"><dt>GenVM execution</dt><dd>{transactionFacts?.execution ?? selectedProofTx?.executionResultName ?? (expected ? "Not executed" : "Awaiting adjudication")}</dd></div>
               <div className="fact-row"><dt>Validators</dt><dd>{transactionFacts?.validators ?? selectedProofTx?.validators ?? (expected ? "Not applicable" : "Unavailable")}</dd></div>
@@ -761,7 +854,7 @@ export default function FaultlineApp() {
         </section>
 
         <section className="methodology" aria-labelledby="methodology-title">
-          <div><h2 id="methodology-title">Why GenLayer belongs here</h2><p>Whether one agent broke a frozen natural-language clause is an interpretation task. The leader and validators independently fetch evidence and reassess the charter; the normalized result must match across substantive fields. Ordinary Python contract code then applies the exact accounting table. Without GenLayer’s independent comparative judgment, Faultline would record a handoff but could not resolve this evidence-based outcome.</p></div>
+          <div><h2 id="methodology-title">Why GenLayer belongs here</h2><p>Whether one agent broke a frozen natural-language clause is an interpretation task. The leader and validators independently fetch evidence and reassess the charter; the outcome and agent responsibility roles must match while clause citations may differ. Ordinary Python contract code then applies the exact accounting table. Without GenLayer’s independent comparative judgment, Faultline would record a handoff but could not resolve this evidence-based outcome.</p></div>
           <div className="methodology__aside"><h2>Small print, plainly</h2><p>Evidence pages are synthetic reviewer fixtures. DEMO balances are simulated accounting, not custody or real funds. Self-hosted evidence is not independent third-party verification. Faultline is an authorization prototype, not production escrow, a universal agent reputation system, or financial advice.</p></div>
         </section>
 
@@ -851,6 +944,7 @@ export default function FaultlineApp() {
           <p>FAULTLINE · Studio Next only · chain 61997 · synthetic evidence · DEMO accounting. No production escrow, no real customer data, no percentage blame.</p>
           <p>Fixtures: {fixtureItems.length} · live charters: {index?.total ?? (CONTRACT_ADDRESS ? "unavailable" : "not deployed")}</p>
         </footer>
+       </div>
       </main>
     </div>
   );

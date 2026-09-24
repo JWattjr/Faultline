@@ -7,13 +7,16 @@ Requester or assigned agent action
         ↓
 Sealed charter + public, hash-pinned evidence URLs
         ↓
-Leader retrieves the charter document, three handoffs, evidence, and final artifact
+Handoff edge checks: hash chain, submission time, evidence-base URL
         ↓
-Leader applies the frozen natural-language clauses
+Leader and validators retrieve the charter and submitted sources
         ↓
-Each validator independently refetches and reassesses the same material
+HTTP 200 content mismatch ──→ EVIDENCE_TAMPERED deterministic BREACHED
+        │ otherwise
         ↓
-Canonical outcome comparison (outcome, clause IDs, and responsibility roles)
+Independent natural-language assessment
+        ↓
+Canonical agreement key (outcome + ordered responsibility roles)
         ↓
 Contract validates the normalized result and current retry/state constraints
         ↓
@@ -24,7 +27,7 @@ Stored receipt → wallet-free live UI and explorer proof
 
 ## Components
 
-- `contracts/faultline.py` owns charter state, agent authorization, attempt ordering, output-hash chaining, validator comparison, lifecycle transitions, and DEMO accounting. It stores identifiers, bounded policy text, URLs, hashes, normalized decisions, and receipts; evidence bodies stay off-chain.
+- `contracts/faultline.py` owns charter state, agent authorization, attempt ordering, edge checks, validator comparison, lifecycle transitions, and DEMO accounting. It stores identifiers, bounded policy text, URLs, hashes, normalized decisions, assessment basis, tampered-source details, and receipts; evidence bodies stay off-chain.
 - `public/evidence/` contains synthetic reviewer fixtures. Each charter, artifact, and evidence page identifies its charter and attempt and states that it is not a real customer or production incident.
 - `scripts/` provisions a Studio Next-only deployer and three demonstration agent keys in the gitignored `.env`, deploys and seeds in sequence, waits for transaction finality and successful execution, and writes deployment/proof files only after read-back verification.
 - `app/`, `components/`, and `lib/` render the current contract state. Public reads do not require a wallet. Wallet interaction is required only to send transactions.
@@ -32,7 +35,7 @@ Stored receipt → wallet-free live UI and explorer proof
 
 ## Consensus boundary
 
-Both leader and validators retrieve the same frozen URLs and verify content hashes before assessment. They return only canonical fields. The custom comparative validator compares normalized fields exactly and never compares free-form reasoning. Malformed model output or an evidence retrieval failure cannot be accepted as an adjudication.
+Both leader and validators retrieve the frozen charter and handoff sources. A charter hash mismatch remains an error. An HTTP 200 agent evidence/artifact whose fetched digest differs from its submitted digest is recorded as `EVIDENCE_TAMPERED` and settles deterministically as `BREACHED`, without asking the model to judge that attempt. Transient fetch failures remain retryable errors. Otherwise the leader and validators return canonical fields; the comparative validator keys agreement on outcome and the ordered agent responsibility roles, not clause citations or free-form reasoning. Malformed model output cannot be accepted as an adjudication.
 
 ## Settlement boundary
 

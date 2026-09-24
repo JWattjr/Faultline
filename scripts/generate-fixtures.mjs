@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const output = resolve(root, 'public', 'evidence');
 const sha256 = (name) => createHash('sha256').update(readFileSync(resolve(output, name))).digest('hex');
+const sha256Text = (value) => createHash('sha256').update(Buffer.from(value, 'utf8')).digest('hex');
 const cases = [
   {
     key: 'accepted',
@@ -82,6 +83,33 @@ const cases = [
       },
     },
   },
+  {
+    key: 'tampered',
+    charterId: 'FLT-TAMPER-001',
+    title: 'Evidence changed after submission',
+    purpose: 'Trace how a submitted evidence page can be edited after an agent commits its hash, and settle that integrity failure without a model verdict.',
+    expectedBasis: 'EVIDENCE_TAMPERED',
+    clauses: [
+      ['C1', 'Research must preserve the submitted evidence bytes after recording their SHA-256 digest.'],
+      ['C2', 'Analysis must compare every submitted handoff hash with the bytes fetched from its evidence URL.'],
+      ['C3', 'Delivery must retain the source and hash references used by the frozen handoff.'],
+    ],
+    agents: {
+      research: {
+        evidence: 'Submitted research record: the review window contains 38 entries. Digest recorded at handoff time: the original evidence page is preserved without later edits.',
+        evidence_after_submission: 'Edited research record: the review window contains 83 entries. This hosted page was changed after the agent submitted the original SHA-256 digest.',
+        artifact: 'Research handoff: 38 entries were reviewed. The original evidence digest and source URL were recorded when this handoff was submitted.',
+      },
+      analysis: {
+        evidence: 'Analysis receipt: the Research handoff was received with its source URL and submitted evidence digest. No independent change was made to this page.',
+        artifact: 'Analysis handoff: the reported 38 entries are traced to the submitted Research artifact and its evidence digest.',
+      },
+      delivery: {
+        evidence: 'Delivery checklist: retain the handoff trace, source URL, and original digest in the final record.',
+        artifact: '<h1>Evidence integrity note</h1><h2>Trace</h2><p>The Research handoff recorded a SHA-256 digest with its source URL.</p><h2>Review</h2><p>The fetched Research evidence no longer matches the submitted digest, so contract code records an integrity breach.</p>',
+      },
+    },
+  },
 ];
 
 const safe = (value) => String(value)
@@ -107,7 +135,7 @@ for (const item of cases) {
   const charterBody = `<p>${safe(item.purpose)}</p><h2>Frozen clauses</h2>${clauses}<h2>Settlement table</h2><p>Escrow: 100,000 DEMO units. Rewards: Research 50%, Analysis 30%, Delivery 20%. PRIMARY bond slash: 50%; CONTRIBUTING slash: 25%; CLEAR slash: 0%. Forfeited DEMO bond units are credited to the requester. The charter opens ${item.key === 'remediation' ? 'one' : 'zero'} retry.</p>`;
   writeFileSync(resolve(output, charterName), page({ caseData: item, kind: 'Frozen charter document', title: item.title, body: charterBody }), 'utf8');
   const expectedOutcome = item.key === 'accepted' ? 'ACCEPTED' : item.key === 'remediation' ? 'REMEDIATION_REQUIRED' : 'BREACHED';
-  const entry = { key: item.key, charter_id: item.charterId, title: item.title, purpose: item.purpose, charter_document: charterName, charter_hash: sha256(charterName), expected_outcome: expectedOutcome, clauses: item.clauses.map(([id, text]) => ({ id, text })), max_retries: item.key === 'remediation' ? 1 : 0, escrow_units: 100000, primary_slash_bps: 5000, contributing_slash_bps: 2500, agents: [] };
+  const entry = { key: item.key, charter_id: item.charterId, title: item.title, purpose: item.purpose, charter_document: charterName, charter_hash: sha256(charterName), expected_outcome: expectedOutcome, expected_basis: item.expectedBasis ?? 'VALIDATOR_JUDGMENT', clauses: item.clauses.map(([id, text]) => ({ id, text })), max_retries: item.key === 'remediation' ? 1 : 0, escrow_units: 100000, primary_slash_bps: 5000, contributing_slash_bps: 2500, agents: [] };
   for (const [index, [slot, agentId, role, clauseId]] of [
     ['research', 'AGENT-RESEARCH', 'Research agent', 'C1'],
     ['analysis', 'AGENT-ANALYSIS', 'Analysis agent', 'C2'],
@@ -116,12 +144,16 @@ for (const item of cases) {
     const data = item.agents[slot];
     const evidenceName = `${item.key}-${slot}-evidence.html`;
     const artifactName = `${item.key}-${slot}-artifact.html`;
-    writeFileSync(resolve(output, evidenceName), page({ caseData: item, kind: 'Submitted evidence', title: `${role} · evidence notes`, body: `<h2>Evidence record</h2><p>${safe(data.evidence)}</p>`, agent: agentId }), 'utf8');
+    const submittedEvidencePage = page({ caseData: item, kind: 'Submitted evidence', title: `${role} · evidence notes`, body: `<h2>Evidence record</h2><p>${safe(data.evidence)}</p>`, agent: agentId });
+    const publishedEvidencePage = page({ caseData: item, kind: 'Submitted evidence', title: `${role} · evidence notes`, body: `<h2>Evidence record</h2><p>${safe(data.evidence_after_submission ?? data.evidence)}</p>`, agent: agentId });
+    writeFileSync(resolve(output, evidenceName), publishedEvidencePage, 'utf8');
     const artifactBody = data.artifact.startsWith('<h1>') ? data.artifact : `<p>${safe(data.artifact)}</p>`;
     writeFileSync(resolve(output, artifactName), page({ caseData: item, kind: 'Handoff artifact', title: `${role} · output`, body: artifactBody, agent: agentId }), 'utf8');
-    entry.agents.push({ agent_id: agentId, slot: slot.toUpperCase(), role, bond_units: 1000, reward_bps: [5000, 3000, 2000][index], responsibility_clause_ids: [clauseId], evidence: evidenceName, evidence_hash: sha256(evidenceName), artifact: artifactName, artifact_hash: sha256(artifactName) });
+    const fixtureAgent = { agent_id: agentId, slot: slot.toUpperCase(), role, bond_units: 1000, reward_bps: [5000, 3000, 2000][index], responsibility_clause_ids: [clauseId], evidence: evidenceName, evidence_hash: sha256Text(submittedEvidencePage), artifact: artifactName, artifact_hash: sha256(artifactName) };
+    if (data.evidence_after_submission) fixtureAgent.published_evidence_hash = sha256(evidenceName);
+    entry.agents.push(fixtureAgent);
   }
   manifest.cases.push(entry);
 }
 writeFileSync(resolve(output, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-console.log(`Generated ${manifest.cases.length} synthetic charters and 18 handoff/evidence pages in ${output}`);
+console.log(`Generated ${manifest.cases.length} synthetic charters and ${manifest.cases.length * 6} handoff/evidence pages in ${output}`);

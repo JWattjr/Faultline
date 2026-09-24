@@ -18,7 +18,7 @@ async function main(): Promise<void> {
   const manifest = await loadFixtureManifest();
   await checkNetwork();
   await assertPublicFixtures(host, manifest);
-  console.log(`Verified public HTTPS fixture hashes at ${host}.`);
+  console.log(`Verified public HTTPS fixture hashes, including the one declared tamper fixture, at ${host}.`);
 
   const ownerAccount = createAccount(loadOrCreateKey("DEPLOYER_PRIVATE_KEY"));
   const ownerClient = createClient({ chain: studioDevnet, endpoint: RPC_URL, account: ownerAccount });
@@ -36,7 +36,7 @@ async function main(): Promise<void> {
   const address = (decoded?.contractAddress ?? (transaction.data as { contract_address?: string } | undefined)?.contract_address) as Hex | undefined;
   if (!address || !/^0x[\da-fA-F]{40}$/.test(address)) throw new Error("Integration deployment did not return a contract address.");
   const version = await readContract<{ version: string }>(reader, address, "get_contract_version");
-  if (version.version !== "faultline/1.0.0") throw new Error(`Unexpected integration contract version: ${version.version}`);
+  if (version.version !== "faultline/1.1.0") throw new Error(`Unexpected integration contract version: ${version.version}`);
 
   const deployment: Deployment = {
     network: "studio-next", chainId: CHAIN_ID, rpcUrl: RPC_URL, explorerUrl: EXPLORER_URL,
@@ -47,7 +47,7 @@ async function main(): Promise<void> {
   for (const item of manifest.cases) {
     const result = await seedCase(deployment, item, ownerClient, agentClients, reader);
     cases[item.charter_id] = result;
-    console.log(`${item.charter_id}: full consensus flow read back as ${result.actual_outcome} / ${result.final_state}.`);
+    console.log(`${item.charter_id}: full consensus flow read back as ${result.actual_outcome} / ${result.final_state} (${result.actual_basis}).`);
   }
 
   writeJson(INTEGRATION_FILE, {
@@ -60,7 +60,7 @@ async function main(): Promise<void> {
     validatorConsensus: "Each adjudication ran through Studio Next consensus; direct business-logic tests are separate.",
     cases,
   });
-  console.log(`Integration passed: ACCEPTED, REMEDIATION_REQUIRED, and BREACHED flows finalized successfully and matched fresh contract reads. Results: ${INTEGRATION_FILE}`);
+  console.log(`Integration passed: all four labeled flows finalized successfully and matched fresh contract reads. Results: ${INTEGRATION_FILE}`);
 }
 
 main().catch((error: unknown) => {

@@ -83,6 +83,11 @@ async function main(): Promise<void> {
     const vercelHosts = [...output.matchAll(/https?:\/\/[a-z0-9][a-z0-9-]*\.vercel\.app/gi)].map((match) => match[0]);
     const productionUrl = (deploymentUrl ?? productionLine ?? vercelHosts[0])?.replace(/[),]+$/, "");
     if (!productionUrl) throw new Error("Vercel reported success but did not return a production URL; inspect the output above before proceeding.");
+    const evidenceOrigin = deployment?.fixtureBaseUrl?.trim() || new URL(productionUrl).origin;
+    const evidenceUrl = new URL(evidenceOrigin);
+    if (evidenceUrl.protocol !== "https:" || evidenceUrl.pathname !== "/" || evidenceUrl.search || evidenceUrl.hash) {
+      throw new Error("The fixture evidence host must be a public HTTPS origin without a path.");
+    }
     const homepage = await fetch(productionUrl, { redirect: "follow" });
     if (!homepage.ok) throw new Error(`Production URL returned HTTP ${homepage.status}: ${productionUrl}`);
     const homepageHtml = await homepage.text();
@@ -95,16 +100,23 @@ async function main(): Promise<void> {
       throw new Error("Production evidence manifest returned a non-JSON response; refusing to record it as a public fixture host.");
     }
     const manifest = await fixture.json() as { cases?: unknown[] };
-    if (!Array.isArray(manifest.cases) || manifest.cases.length !== 3) {
-      throw new Error("Production evidence manifest did not contain all three synthetic cases.");
+    if (!Array.isArray(manifest.cases) || manifest.cases.length !== 4) {
+      throw new Error("Production evidence manifest did not contain all four synthetic cases.");
     }
-    if (!deployment) {
-      const url = new URL(productionUrl);
-      setEnvValue("FIXTURE_BASE_URL", url.origin);
-      console.log(`Saved verified production evidence origin to the gitignored .env: ${url.origin}`);
+    const evidenceResponse = await fetch(new URL("/evidence/manifest.json", evidenceUrl.origin), { redirect: "follow" });
+    if (!evidenceResponse.ok || !evidenceResponse.headers.get("content-type")?.includes("application/json")) {
+      throw new Error(`Configured evidence host did not return a public JSON manifest (HTTP ${evidenceResponse.status}): ${evidenceUrl.origin}`);
+    }
+    const evidenceManifest = await evidenceResponse.json() as { cases?: unknown[] };
+    if (!Array.isArray(evidenceManifest.cases) || evidenceManifest.cases.length !== 4) {
+      throw new Error(`Configured evidence host did not serve all four fixtures: ${evidenceUrl.origin}`);
+    }
+    setEnvValue("FIXTURE_BASE_URL", evidenceUrl.origin);
+    if (!deployment || !/^0x[\da-fA-F]{40}$/.test(deployment.contractAddress)) {
+      console.log(`Saved verified production evidence origin to the gitignored .env: ${evidenceUrl.origin}`);
       console.log("Next, run npm run deploy, npm run seed:demo, npm run verify:proof, npm run build, and npm run deploy:frontend again to publish the live contract and receipts.");
     } else {
-      console.log(`Production Faultline verified at ${productionUrl}; evidence manifest returned HTTP ${fixture.status}.`);
+      console.log(`Production Faultline verified at ${productionUrl}; public evidence host ${evidenceUrl.origin} serves all four fixture cases.`);
     }
   } finally {
     const linkedProject = resolve(stagingRoot, ".vercel", "project.json");

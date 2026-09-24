@@ -33,7 +33,7 @@ def assert_expired_accounting(record, case):
 def test_deployment_version_and_empty_stats(faultline):
     version = json.loads(faultline.get_contract_version())
     stats = json.loads(faultline.get_stats())
-    assert version["version"] == "faultline/1.0.0"
+    assert version["version"] == "faultline/1.1.0"
     assert version["runner"].endswith("5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng")
     assert version["accounting_unit"] == "DEMO"
     assert stats["total_charters"] == 0
@@ -189,6 +189,24 @@ def test_previous_hash_chain_and_final_artifact(faultline, direct_vm, direct_own
     assert record["final_artifact"]["hash"] == file_hash(case["agents"][2]["artifact"])
     delivery = json.loads(faultline.get_handoff(case["charter_id"], 1, "AGENT-DELIVERY"))
     assert delivery["previous_output_hash"] == file_hash(case["agents"][1]["artifact"])
+
+
+def test_each_handoff_stores_passed_edge_check_on_both_getters(faultline, direct_vm, direct_owner, wallets):
+    case = create_case(faultline, direct_vm, direct_owner, wallets)
+    seal_case(faultline, direct_vm, direct_owner, case)
+    submit_pipeline(faultline, direct_vm, case, wallets)
+
+    attempt = json.loads(faultline.get_attempt(case["charter_id"], 1))
+    expected = {
+        "hash_chain_ok": True,
+        "on_time": True,
+        "inside_evidence_base": True,
+        "status": "PASSED",
+    }
+    for index, agent_id in enumerate(("AGENT-RESEARCH", "AGENT-ANALYSIS", "AGENT-DELIVERY")):
+        assert attempt["handoffs"][index]["edge_check"] == expected
+        handoff = json.loads(faultline.get_handoff(case["charter_id"], 1, agent_id))
+        assert handoff["edge_check"] == expected
 
 
 def test_evidence_hash_url_attempt_and_duplicate_handoff_validation(faultline, direct_vm, direct_owner, wallets):

@@ -19,6 +19,19 @@ export type Agent = {
 };
 
 export type Clause = { id: string; text: string };
+export type EdgeCheck = {
+  hash_chain_ok: boolean;
+  on_time: boolean;
+  inside_evidence_base: boolean;
+  status: "PASSED" | "FAILED";
+};
+export type TamperedSource = {
+  agent_id: string;
+  source_kind: "EVIDENCE" | "ARTIFACT";
+  url: string;
+  submitted_hash: string;
+  fetched_hash: string;
+};
 export type Handoff = {
   charter_id: string;
   attempt_number: number;
@@ -31,6 +44,7 @@ export type Handoff = {
   artifact_hash: string;
   previous_output_hash: string;
   submitted_at: number;
+  edge_check: EdgeCheck;
 };
 
 export type Charter = {
@@ -77,6 +91,8 @@ export type Attempt = {
   state: string;
   handoffs_received: number;
   outcome: string;
+  basis: "EVIDENCE_TAMPERED" | "VALIDATOR_JUDGMENT" | "";
+  tampered_sources: TamperedSource[];
   violated_clause_ids: string[];
   responsibility: Array<{ agent_id: string; role: string; clause_ids: string[] }>;
   adjudicated_at: number;

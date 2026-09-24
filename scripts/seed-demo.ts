@@ -28,7 +28,17 @@ type CharterRecord = {
     bonds_slashed: Record<string, number>;
   };
 };
-type AttemptRecord = { handoffs_received: number; handoffs: Array<{ artifact_hash: string; evidence_hash: string; previous_output_hash: string } | null> };
+type AttemptRecord = {
+  handoffs_received: number;
+  basis: FixtureCase["expected_basis"] | "";
+  tampered_sources: Array<{ agent_id: string; source_kind: "EVIDENCE" | "ARTIFACT"; url: string; submitted_hash: string; fetched_hash: string }>;
+  handoffs: Array<{
+    artifact_hash: string;
+    evidence_hash: string;
+    previous_output_hash: string;
+    edge_check: { hash_chain_ok: boolean; on_time: boolean; inside_evidence_base: boolean; status: "PASSED" | "FAILED" };
+  } | null>;
+};
 type ReceiptRecord = { receipt_hash: string; outcome: string; accounting: CharterRecord["accounting"] } | Record<string, never>;
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -77,11 +87,23 @@ export async function seedCase(deployment: Deployment, item: FixtureCase, reques
   const record = await readContract<CharterRecord>(reader, address, "get_charter", [item.charter_id]);
   const attempt = await readContract<AttemptRecord>(reader, address, "get_attempt", [item.charter_id, 1]);
   assert(attempt.handoffs_received === 3 && attempt.handoffs.length === 3, `${item.charter_id} read-back is missing one or more handoffs.`);
+  assert(attempt.basis === item.expected_basis, `${item.charter_id}: expected basis ${item.expected_basis}, received ${attempt.basis || "none"}.`);
   for (let index = 0; index < item.agents.length; index += 1) {
     const handoff = attempt.handoffs[index];
     const fixture = item.agents[index]!;
     assert(handoff?.artifact_hash === fixture.artifact_hash && handoff.evidence_hash === fixture.evidence_hash, `${item.charter_id} handoff ${fixture.slot} did not match the published fixture hashes.`);
     assert(handoff.previous_output_hash === (index === 0 ? "" : item.agents[index - 1]!.artifact_hash), `${item.charter_id} handoff ${fixture.slot} has an invalid hash chain.`);
+    assert(handoff.edge_check.status === "PASSED" && handoff.edge_check.hash_chain_ok && handoff.edge_check.on_time && handoff.edge_check.inside_evidence_base, `${item.charter_id} handoff ${fixture.slot} did not pass every edge check.`);
+  }
+  const tamperedFixture = item.agents.find((agent) => agent.published_evidence_hash);
+  if (item.expected_basis === "EVIDENCE_TAMPERED") {
+    assert(tamperedFixture && attempt.tampered_sources.length === 1, `${item.charter_id} must record exactly one changed evidence source.`);
+    const source = attempt.tampered_sources[0]!;
+    assert(source.agent_id === tamperedFixture.agent_id && source.source_kind === "EVIDENCE", `${item.charter_id} changed source was attributed to the wrong agent or source kind.`);
+    assert(source.submitted_hash === tamperedFixture.evidence_hash && source.fetched_hash === tamperedFixture.published_evidence_hash, `${item.charter_id} submitted and fetched hashes did not match the fixture manifest.`);
+    assert(source.url.endsWith(encodeURIComponent(tamperedFixture.evidence)), `${item.charter_id} changed source URL did not match the published evidence page.`);
+  } else {
+    assert(!tamperedFixture && attempt.tampered_sources.length === 0, `${item.charter_id} unexpectedly recorded changed evidence.`);
   }
   assert(record.latest_outcome === item.expected_outcome, `${item.charter_id}: expected ${item.expected_outcome}, received ${record.latest_outcome || "no outcome"}.`);
 
@@ -93,7 +115,9 @@ export async function seedCase(deployment: Deployment, item: FixtureCase, reques
     assert(record.responsibility.length === 0, "Remediation must not assign terminal responsibility roles.");
   } else {
     assert(record.state === "SETTLED_BREACHED" && record.accounting.escrow_refunded_units === item.escrow_units, "Breach settlement did not refund the frozen escrow.");
-    const expectedRoles: Record<string, string> = { "AGENT-RESEARCH": "PRIMARY", "AGENT-ANALYSIS": "CONTRIBUTING", "AGENT-DELIVERY": "CLEAR" };
+    const expectedRoles: Record<string, string> = item.expected_basis === "EVIDENCE_TAMPERED"
+      ? { "AGENT-RESEARCH": "PRIMARY", "AGENT-ANALYSIS": "CLEAR", "AGENT-DELIVERY": "CLEAR" }
+      : { "AGENT-RESEARCH": "PRIMARY", "AGENT-ANALYSIS": "CONTRIBUTING", "AGENT-DELIVERY": "CLEAR" };
     for (const [agentId, role] of Object.entries(expectedRoles)) assert(record.responsibility.find((entry) => entry.agent_id === agentId)?.role === role, `Breached responsibility for ${agentId} did not match ${role}.`);
   }
 
@@ -104,7 +128,9 @@ export async function seedCase(deployment: Deployment, item: FixtureCase, reques
     charter_id: item.charter_id,
     title: item.title,
     expected_outcome: item.expected_outcome,
+    expected_basis: item.expected_basis,
     actual_outcome: record.latest_outcome,
+    actual_basis: attempt.basis,
     final_state: record.state,
     receipt_hash: "receipt_hash" in receipt ? receipt.receipt_hash : undefined,
     transactions,
@@ -118,7 +144,7 @@ export async function main(): Promise<void> {
   const manifest = await loadFixtureManifest();
   await checkNetwork();
   await assertPublicFixtures(deployment.fixtureBaseUrl, manifest);
-  console.log("All hosted synthetic evidence pages returned HTTPS 200 and match their published SHA-256 hashes.");
+  console.log("All hosted synthetic evidence pages returned HTTPS 200; only FLT-TAMPER-001 has its declared post-submission hash mismatch.");
 
   const requester = createAccount(loadOrCreateKey("DEPLOYER_PRIVATE_KEY"));
   const requesterClient = createClient({ chain: studioDevnet, endpoint: deployment.rpcUrl, account: requester });
@@ -135,7 +161,7 @@ export async function main(): Promise<void> {
   const proof = { network: "studio-next", chainId: CHAIN_ID, contractAddress: deployment.contractAddress, generatedAt: new Date().toISOString(), verified: true, cases };
   writeJson(PROOF_FILE, proof);
   writeJson(PUBLIC_PROOF_FILE, proof);
-  console.log(`\nAll three flows were finalized, successful, and read back from Studio Next. Proof records: ${PROOF_FILE}`);
+  console.log(`\nAll four flows were finalized, successful, and read back from Studio Next. Proof records: ${PROOF_FILE}`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

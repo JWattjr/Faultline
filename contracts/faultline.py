@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 import genlayer as gl
 
-VERSION = "faultline/1.0.0"
+VERSION = "faultline/1.1.0"
 SETTLEMENT_VERSION = "faultline-settlement/1.0"
 DEMO_UNIT = "DEMO"
 
@@ -189,7 +189,7 @@ def _html_text(raw: str) -> str:
     return " ".join(html.unescape(clean).split())
 
 
-def _fetch_source(url: str, expected_hash: str) -> dict:
+def _fetch_source(url: str, expected_hash: str, capture_hash_mismatch: bool = False) -> dict:
     try:
         response = gl.nondet.web.get(url)
     except Exception as exc:
@@ -200,20 +200,23 @@ def _fetch_source(url: str, expected_hash: str) -> dict:
     if status != 200:
         raise ExternalClientError("HTTP " + str(status) + " at " + url)
     body = response.body or b""
-    if not body:
-        raise DeterministicBusinessError("empty evidence at " + url)
     if len(body) > MAX_ARTIFACT_BYTES:
         raise DeterministicBusinessError("evidence exceeds the bounded body size at " + url)
     actual_hash = hashlib.sha256(body).hexdigest().lower()
-    if actual_hash != expected_hash:
+    hash_matches = actual_hash == expected_hash
+    if not hash_matches and not capture_hash_mismatch:
         raise DeterministicBusinessError("content hash mismatch at " + url)
+    if not hash_matches:
+        return {"url": url, "sha256": actual_hash, "text": "", "hash_matches": False}
+    if not body:
+        raise DeterministicBusinessError("empty evidence at " + url)
     text = _html_text(body.decode("utf-8", errors="replace"))
     if not text:
         raise DeterministicBusinessError("evidence contains no readable text at " + url)
-    return {"url": url, "sha256": actual_hash, "text": text[:MAX_ARTIFACT_CHARS]}
+    return {"url": url, "sha256": actual_hash, "text": text[:MAX_ARTIFACT_CHARS], "hash_matches": True}
 
 
-def _fetch_bundle(snapshot: dict) -> dict:
+def _fetch_bundle(snapshot: dict, capture_agent_tampering: bool = False) -> dict:
     base = snapshot["evidence_base_url"]
     all_sources = []
     if not _under_base(snapshot["document_url"], base):
@@ -221,6 +224,7 @@ def _fetch_bundle(snapshot: dict) -> dict:
     charter_doc = _fetch_source(snapshot["document_url"], snapshot["document_hash"])
     all_sources.append({"kind": "CHARTER", "source": charter_doc})
     handoffs = []
+    tampered_sources = []
     for agent in snapshot["agents"]:
         handoff = snapshot["handoffs"].get(agent["agent_id"])
         if not handoff:
@@ -228,13 +232,29 @@ def _fetch_bundle(snapshot: dict) -> dict:
         for field in ("evidence_url", "artifact_url"):
             if not _under_base(handoff[field], base):
                 raise DeterministicBusinessError(field + " is outside the sealed evidence base")
-        evidence = _fetch_source(handoff["evidence_url"], handoff["evidence_hash"])
-        artifact = _fetch_source(handoff["artifact_url"], handoff["artifact_hash"])
+        evidence = _fetch_source(handoff["evidence_url"], handoff["evidence_hash"], capture_agent_tampering)
+        artifact = _fetch_source(handoff["artifact_url"], handoff["artifact_hash"], capture_agent_tampering)
+        if not evidence["hash_matches"]:
+            tampered_sources.append({
+                "agent_id": agent["agent_id"], "source_kind": "EVIDENCE",
+                "url": evidence["url"], "submitted_hash": handoff["evidence_hash"],
+                "fetched_hash": evidence["sha256"],
+            })
+        if not artifact["hash_matches"]:
+            tampered_sources.append({
+                "agent_id": agent["agent_id"], "source_kind": "ARTIFACT",
+                "url": artifact["url"], "submitted_hash": handoff["artifact_hash"],
+                "fetched_hash": artifact["sha256"],
+            })
         all_sources.append({"kind": "AGENT_EVIDENCE", "agent_id": agent["agent_id"], "source": evidence})
         all_sources.append({"kind": "HANDOFF_ARTIFACT", "agent_id": agent["agent_id"], "source": artifact})
         handoffs.append({"agent_id": agent["agent_id"], "slot": agent["slot"], "previous_output_hash": handoff["previous_output_hash"], "artifact": artifact, "evidence": evidence})
     delivery = handoffs[2]
-    return {"charter_document": charter_doc, "sources": all_sources, "handoffs": handoffs, "final_artifact": delivery["artifact"]}
+    return {
+        "charter_document": charter_doc, "sources": all_sources,
+        "handoffs": handoffs, "final_artifact": delivery["artifact"],
+        "tampered_sources": tampered_sources,
+    }
 
 
 def _prompt(snapshot: dict, bundle: dict) -> str:
@@ -340,26 +360,115 @@ def _normalize_decision(raw: object, snapshot: dict) -> dict:
     return {"outcome": outcome, "violated_clause_ids": clauses, "responsibility": normalized_roles}
 
 
-def _consensus_key(decision: dict) -> tuple:
-    """Compare every substantive field after canonical normalization, never free-form text."""
+def _settlement_key(decision: dict) -> tuple:
+    """Compare only the normalized outcome and agent-role assignments."""
     return (
         decision["outcome"],
-        tuple(decision["violated_clause_ids"]),
         tuple(
-            (item["agent_id"], item["role"], tuple(item["clause_ids"]))
+            (item["agent_id"], item["role"])
             for item in decision["responsibility"]
         ),
     )
 
 
-def _assess(snapshot: dict) -> dict:
-    bundle = _fetch_bundle(snapshot)
+def _assess(snapshot: dict, bundle: dict = None) -> dict:
+    if bundle is None:
+        bundle = _fetch_bundle(snapshot)
     prompt = _prompt(snapshot, bundle)
     try:
         raw = gl.nondet.exec_prompt(prompt, response_format="json")
     except Exception as exc:
         raise MalformedLLMOutput("model call failed (" + type(exc).__name__ + ")")
     return _normalize_decision(raw, snapshot)
+
+
+def _tampered_decision(snapshot: dict, tampered_sources: list) -> dict:
+    changed_agents = []
+    for agent in snapshot["agents"]:
+        if any(source["agent_id"] == agent["agent_id"] for source in tampered_sources):
+            changed_agents.append(agent)
+    if not changed_agents:
+        raise DeterministicBusinessError("tamper decision requires at least one changed agent source")
+    changed_ids = [agent["agent_id"] for agent in changed_agents]
+    violated = sorted({
+        clause_id
+        for agent in changed_agents
+        for clause_id in agent["responsibility_clause_ids"]
+    })
+    responsibility = []
+    for agent in snapshot["agents"]:
+        if agent["agent_id"] not in changed_ids:
+            role = "CLEAR"
+            clauses = []
+        else:
+            role = "PRIMARY" if agent["agent_id"] == changed_ids[0] else "CONTRIBUTING"
+            clauses = sorted(agent["responsibility_clause_ids"])
+        responsibility.append({
+            "agent_id": agent["agent_id"], "role": role, "clause_ids": clauses,
+        })
+    return {"outcome": "BREACHED", "violated_clause_ids": violated, "responsibility": responsibility}
+
+
+def _assessment_result(snapshot: dict) -> dict:
+    bundle = _fetch_bundle(snapshot, capture_agent_tampering=True)
+    tampered_sources = bundle["tampered_sources"]
+    if tampered_sources:
+        return {
+            "decision": _tampered_decision(snapshot, tampered_sources),
+            "basis": "EVIDENCE_TAMPERED",
+            "tampered_sources": tampered_sources,
+        }
+    return {
+        "decision": _assess(snapshot, bundle),
+        "basis": "VALIDATOR_JUDGMENT",
+        "tampered_sources": [],
+    }
+
+
+def _normalize_assessment_result(raw: object, snapshot: dict) -> dict:
+    if not isinstance(raw, dict) or set(raw.keys()) != {"decision", "basis", "tampered_sources"}:
+        raise MalformedLLMOutput("assessment result has an invalid envelope")
+    basis = raw.get("basis")
+    if basis not in ("EVIDENCE_TAMPERED", "VALIDATOR_JUDGMENT"):
+        raise MalformedLLMOutput("assessment basis is invalid")
+    decision = _normalize_decision(raw.get("decision"), snapshot)
+    tampered_sources = raw.get("tampered_sources")
+    if not isinstance(tampered_sources, list):
+        raise MalformedLLMOutput("tampered sources must be an array")
+    normalized_sources = []
+    seen = []
+    for source in tampered_sources:
+        fields = {"agent_id", "source_kind", "url", "submitted_hash", "fetched_hash"}
+        if not isinstance(source, dict) or set(source.keys()) != fields:
+            raise MalformedLLMOutput("tampered source has an invalid shape")
+        agent_id = source.get("agent_id")
+        source_kind = source.get("source_kind")
+        if agent_id not in AGENT_IDS or source_kind not in ("EVIDENCE", "ARTIFACT"):
+            raise MalformedLLMOutput("tampered source identifies an unknown handoff field")
+        source_key = agent_id + ":" + source_kind
+        if source_key in seen:
+            raise MalformedLLMOutput("tampered source is duplicated")
+        seen.append(source_key)
+        handoff = snapshot["handoffs"].get(agent_id, {})
+        suffix = "evidence" if source_kind == "EVIDENCE" else "artifact"
+        if source.get("url") != handoff.get(suffix + "_url") or source.get("submitted_hash") != handoff.get(suffix + "_hash"):
+            raise MalformedLLMOutput("tampered source does not match the submitted handoff")
+        fetched_hash = source.get("fetched_hash")
+        if not isinstance(fetched_hash, str) or not HASH_RE.fullmatch(fetched_hash) or fetched_hash.lower() == handoff.get(suffix + "_hash"):
+            raise MalformedLLMOutput("tampered source fetched hash is invalid")
+        normalized_sources.append({
+            "agent_id": agent_id, "source_kind": source_kind, "url": source["url"],
+            "submitted_hash": handoff[suffix + "_hash"], "fetched_hash": fetched_hash.lower(),
+        })
+    if basis == "EVIDENCE_TAMPERED":
+        if not normalized_sources:
+            raise MalformedLLMOutput("evidence-tampered basis requires a changed source")
+        deterministic = _tampered_decision(snapshot, normalized_sources)
+        if decision != deterministic:
+            raise MalformedLLMOutput("evidence-tampered decision does not match the changed agents")
+    elif normalized_sources:
+        raise MalformedLLMOutput("validator judgment cannot include changed evidence")
+    return {"decision": decision, "basis": basis, "tampered_sources": normalized_sources}
 
 
 def _classified_user_error(exc: Exception):
@@ -501,7 +610,8 @@ class Faultline(gl.contract.Contract):
         self.state_counts["DRAFT"] = gl.u256(int(self.state_counts.get("DRAFT", 0)) + 1)
         self.attempts[self._attempt_key(charter_id, 1)] = json.dumps({
             "charter_id": charter_id, "attempt_number": 1, "state": "NOT_OPEN", "handoffs_received": 0,
-            "outcome": "", "violated_clause_ids": [], "responsibility": [], "adjudicated_at": 0,
+            "outcome": "", "violated_clause_ids": [], "responsibility": [],
+            "basis": "", "tampered_sources": [], "adjudicated_at": 0,
         }, sort_keys=True)
 
     @gl.public.write
@@ -569,27 +679,41 @@ class Faultline(gl.contract.Contract):
         _business(attempt["state"] in ("OPEN", "IN_PROGRESS"), "attempt is not open")
         key = self._handoff_key(charter_id, attempt_number, agent_id)
         _business(not self.handoffs.get(key, ""), "duplicate handoff for this agent and attempt")
-        _business(_now_ts() < record["expires_at"], "charter deadline has passed")
+        submitted_at = _now_ts()
+        on_time = submitted_at < record["expires_at"]
+        _business(on_time, "charter deadline has passed")
         evidence_url = _valid_url(evidence_url)
         artifact_url = _valid_url(artifact_url)
-        _business(_under_base(evidence_url, record["evidence_base_url"]), "evidence URL is outside the sealed evidence base")
-        _business(_under_base(artifact_url, record["evidence_base_url"]), "artifact URL is outside the sealed evidence base")
+        inside_evidence_base = (
+            _under_base(evidence_url, record["evidence_base_url"])
+            and _under_base(artifact_url, record["evidence_base_url"])
+        )
+        _business(inside_evidence_base, "evidence URL is outside the sealed evidence base")
         evidence_hash = _validate_hash(evidence_hash, "evidence hash")
         artifact_hash = _validate_hash(artifact_hash, "artifact hash")
         if agent_index == 0:
-            _business(previous_output_hash == "", "Research must start a pipeline without a preceding output hash")
+            hash_chain_ok = previous_output_hash == ""
+            _business(hash_chain_ok, "Research must start a pipeline without a preceding output hash")
         else:
             prior_id = AGENT_IDS[agent_index - 1]
             prior_raw = self.handoffs.get(self._handoff_key(charter_id, attempt_number, prior_id), "")
             _business(bool(prior_raw), "handoffs must be submitted in fixed pipeline order")
             prior = json.loads(prior_raw)
             previous_output_hash = _validate_hash(previous_output_hash, "previous output hash")
-            _business(previous_output_hash == prior["artifact_hash"], "previous output hash does not match the preceding handoff")
+            hash_chain_ok = previous_output_hash == prior["artifact_hash"]
+            _business(hash_chain_ok, "previous output hash does not match the preceding handoff")
+        edge_check = {
+            "hash_chain_ok": hash_chain_ok,
+            "on_time": on_time,
+            "inside_evidence_base": inside_evidence_base,
+            "status": "PASSED" if hash_chain_ok and on_time and inside_evidence_base else "FAILED",
+        }
         handoff = {
             "charter_id": charter_id, "attempt_number": attempt_number, "agent_id": agent_id,
             "slot": SLOTS[agent_index], "wallet": agent["wallet"], "evidence_url": evidence_url,
             "evidence_hash": evidence_hash, "artifact_url": artifact_url, "artifact_hash": artifact_hash,
-            "previous_output_hash": previous_output_hash, "submitted_at": _now_ts(),
+            "previous_output_hash": previous_output_hash, "submitted_at": submitted_at,
+            "edge_check": edge_check,
         }
         self.handoffs[key] = json.dumps(handoff, sort_keys=True)
         if agent_index == 2:
@@ -618,7 +742,7 @@ class Faultline(gl.contract.Contract):
 
         def leader_fn():
             try:
-                return _assess(snapshot)
+                return _assessment_result(snapshot)
             except (DeterministicBusinessError, ExternalClientError, TransientNetworkError, MalformedLLMOutput) as exc:
                 _classified_user_error(exc)
 
@@ -626,9 +750,13 @@ class Faultline(gl.contract.Contract):
             if not isinstance(leader_res, gl.vm.Return):
                 return False
             try:
-                leader = _normalize_decision(leader_res.calldata, snapshot)
-                mine = _assess(snapshot)
-                return _consensus_key(leader) == _consensus_key(mine)
+                leader = _normalize_assessment_result(leader_res.calldata, snapshot)
+                mine = _normalize_assessment_result(_assessment_result(snapshot), snapshot)
+                return (
+                    leader["basis"] == mine["basis"]
+                    and leader["tampered_sources"] == mine["tampered_sources"]
+                    and _settlement_key(leader["decision"]) == _settlement_key(mine["decision"])
+                )
             except Exception:
                 return False
 
@@ -645,12 +773,18 @@ class Faultline(gl.contract.Contract):
         except Exception as exc:
             _classified_user_error(exc)
 
-        decision = _normalize_decision(decision, snapshot)
+        try:
+            assessment = _normalize_assessment_result(decision, snapshot)
+        except (DeterministicBusinessError, ExternalClientError, TransientNetworkError, MalformedLLMOutput) as exc:
+            _classified_user_error(exc)
+        decision = assessment["decision"]
         outcome = decision["outcome"]
         attempt["state"] = outcome
         attempt["outcome"] = outcome
         attempt["violated_clause_ids"] = decision["violated_clause_ids"]
         attempt["responsibility"] = decision["responsibility"]
+        attempt["basis"] = assessment["basis"]
+        attempt["tampered_sources"] = assessment["tampered_sources"]
         attempt["adjudicated_at"] = _now_ts()
         self._save_attempt(attempt)
         record["latest_outcome"] = outcome
@@ -669,7 +803,7 @@ class Faultline(gl.contract.Contract):
             self.attempts[self._attempt_key(charter_id, attempt_number + 1)] = json.dumps({
                 "charter_id": charter_id, "attempt_number": attempt_number + 1, "state": "OPEN",
                 "handoffs_received": 0, "outcome": "", "violated_clause_ids": [],
-                "responsibility": [], "adjudicated_at": 0,
+                "responsibility": [], "basis": "", "tampered_sources": [], "adjudicated_at": 0,
             }, sort_keys=True)
             self._set_state(record, "AWAITING_REMEDIATION")
         else:

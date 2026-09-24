@@ -9,6 +9,7 @@
       "charter_document": "charter-accepted.html",
       "charter_hash": "5c40bf5ba21c8e77659bc371c90476fcd0c261dd8970c1b6e27a1ede92baf84e",
       "expected_outcome": "ACCEPTED",
+      "expected_basis": "VALIDATOR_JUDGMENT",
       "clauses": [
         {
           "id": "C1",
@@ -80,6 +81,7 @@
       "charter_document": "charter-remediation.html",
       "charter_hash": "6f62708b4c1b9e1460eee4099ae0b77865ac269a5d1aed9f2fa55cfe47d378a1",
       "expected_outcome": "REMEDIATION_REQUIRED",
+      "expected_basis": "VALIDATOR_JUDGMENT",
       "clauses": [
         {
           "id": "C1",
@@ -151,6 +153,7 @@
       "charter_document": "charter-breached.html",
       "charter_hash": "feea261157c851ba9b6ed2a6a8b15f318a473c3922ebb2020691774401ba2ca2",
       "expected_outcome": "BREACHED",
+      "expected_basis": "VALIDATOR_JUDGMENT",
       "clauses": [
         {
           "id": "C1",
@@ -211,6 +214,79 @@
           "evidence_hash": "69f7849fe7bdcec9c85ecb003f2a8cc51628d6c94452e6dde68feba74bcfe56b",
           "artifact": "breached-delivery-artifact.html",
           "artifact_hash": "22527510bf37c5f946696d86e8628713720eacea1196268e2ae5aa29102d866c"
+        }
+      ]
+    },
+    {
+      "key": "tampered",
+      "charter_id": "FLT-TAMPER-001",
+      "title": "Evidence changed after submission",
+      "purpose": "Trace how a submitted evidence page can be edited after an agent commits its hash, and settle that integrity failure without a model verdict.",
+      "charter_document": "charter-tampered.html",
+      "charter_hash": "8c432dba6d985ea7b6bb114dac5de7b57cc744cb88e378b476924daa6dfcc77a",
+      "expected_outcome": "BREACHED",
+      "expected_basis": "EVIDENCE_TAMPERED",
+      "clauses": [
+        {
+          "id": "C1",
+          "text": "Research must preserve the submitted evidence bytes after recording their SHA-256 digest."
+        },
+        {
+          "id": "C2",
+          "text": "Analysis must compare every submitted handoff hash with the bytes fetched from its evidence URL."
+        },
+        {
+          "id": "C3",
+          "text": "Delivery must retain the source and hash references used by the frozen handoff."
+        }
+      ],
+      "max_retries": 0,
+      "escrow_units": 100000,
+      "primary_slash_bps": 5000,
+      "contributing_slash_bps": 2500,
+      "agents": [
+        {
+          "agent_id": "AGENT-RESEARCH",
+          "slot": "RESEARCH",
+          "role": "Research agent",
+          "bond_units": 1000,
+          "reward_bps": 5000,
+          "responsibility_clause_ids": [
+            "C1"
+          ],
+          "evidence": "tampered-research-evidence.html",
+          "evidence_hash": "1854d03bc460b401f263757e26692be93bd67f744500188df902f7f955fe181b",
+          "artifact": "tampered-research-artifact.html",
+          "artifact_hash": "3e4bc767479d177056a5f13fdbfd30e663ea0cfa2e634bd652af19ec764dfb35",
+          "published_evidence_hash": "f08bc4bfab5ea8cae6d66b9cccb0fa1a582f036b3587937322b21e5da3d4d8dc"
+        },
+        {
+          "agent_id": "AGENT-ANALYSIS",
+          "slot": "ANALYSIS",
+          "role": "Analysis agent",
+          "bond_units": 1000,
+          "reward_bps": 3000,
+          "responsibility_clause_ids": [
+            "C2"
+          ],
+          "evidence": "tampered-analysis-evidence.html",
+          "evidence_hash": "ee9f29c95778a2217812f708c22a6efde7cdf494c8a58bd4ec5e4d3304e94387",
+          "artifact": "tampered-analysis-artifact.html",
+          "artifact_hash": "aad4fd11dae6477b27a05e6d35ad117272df28de75b27f26ed754a64d5a0a3e6"
+        },
+        {
+          "agent_id": "AGENT-DELIVERY",
+          "slot": "DELIVERY",
+          "role": "Delivery agent",
+          "bond_units": 1000,
+          "reward_bps": 2000,
+          "responsibility_clause_ids": [
+            "C3"
+          ],
+          "evidence": "tampered-delivery-evidence.html",
+          "evidence_hash": "13079377460b9daeee6984c3dff56c2af58910a032b4e8c374f60fd87f1212e0",
+          "artifact": "tampered-delivery-artifact.html",
+          "artifact_hash": "36f36db88eb62a86cb26bcb34500b5e936cffa157f79c59c2b5b8e6f06c693eb"
         }
       ]
     }

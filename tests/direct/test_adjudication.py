@@ -1,9 +1,10 @@
+import hashlib
 import json
 import pytest
 
 from .conftest import EVIDENCE, set_tx_time
 from .helpers import (
-    case_data, create_case, decision, file_hash, install_adjudication_mocks,
+    assessment_result, case_data, create_case, decision, file_hash, install_adjudication_mocks,
     register_fixture_mocks, submit_pipeline, submit_sealed_pipeline, url,
     breach_roles,
 )
@@ -21,7 +22,7 @@ def test_accepted_settlement_uses_frozen_integer_basis_points(faultline, direct_
     assert faultline.adjudicate(case["charter_id"], 1) == "ACCEPTED"
     assert direct_vm.run_validator() is True
     assert direct_vm.run_validator(
-        leader_result=decision("BREACHED", ["C1", "C2"], breach_roles())
+        leader_result=assessment_result(decision("BREACHED", ["C1", "C2"], breach_roles()))
     ) is False
     charter = json.loads(faultline.get_charter(case["charter_id"]))
     receipt = json.loads(faultline.get_receipt(case["charter_id"]))
@@ -38,7 +39,7 @@ def test_accepted_settlement_uses_frozen_integer_basis_points(faultline, direct_
     assert receipt["outcome"] == "ACCEPTED"
 
 
-def test_clause_disagreement_does_not_reach_consensus(faultline, direct_vm, direct_owner, wallets):
+def test_validator_compares_outcome_and_roles_but_allows_clause_differences(faultline, direct_vm, direct_owner, wallets):
     case = submit_sealed_pipeline(faultline, direct_vm, direct_owner, wallets, "breached")
     result = decision("BREACHED", ["C1", "C2"], breach_roles())
     install_adjudication_mocks(direct_vm, case, result)
@@ -46,10 +47,13 @@ def test_clause_disagreement_does_not_reach_consensus(faultline, direct_vm, dire
     faultline.adjudicate(case["charter_id"], 1)
     assert direct_vm.run_validator() is True
 
-    # Outcome and roles agree, but the validator also finds C3 violated.
-    # Every normalized substantive field must match before settlement.
+    # The leader and validator agree on outcome and role assignments. Clause
+    # citations remain visible in the records but do not change settlement.
     divergent = decision("BREACHED", ["C1", "C2", "C3"], breach_roles())
-    assert direct_vm.run_validator(leader_result=divergent) is False
+    assert direct_vm.run_validator(leader_result=assessment_result(divergent)) is True
+
+    different_roles = decision("BREACHED", ["C1", "C2"], breach_roles(primary="AGENT-ANALYSIS", contributing="AGENT-RESEARCH"))
+    assert direct_vm.run_validator(leader_result=assessment_result(different_roles)) is False
 
 
 def test_remediation_records_clause_without_roles_or_accounting_movement(faultline, direct_vm, direct_owner, wallets):
@@ -195,24 +199,50 @@ def test_evidence_http_errors_are_classified_and_do_not_settle(faultline, direct
     with direct_vm.expect_revert(prefix):
         faultline.adjudicate(case["charter_id"], 1)
     charter = json.loads(faultline.get_charter(case["charter_id"]))
+    attempt = json.loads(faultline.get_attempt(case["charter_id"], 1))
     assert charter["state"] == "READY_FOR_REVIEW"
     assert charter["accounting"]["escrow_locked_units"] == 100000
+    assert attempt["basis"] == ""
+    assert attempt["tampered_sources"] == []
 
 
-def test_empty_evidence_is_a_business_error_and_does_not_settle(faultline, direct_vm, direct_owner, wallets):
+def test_network_error_during_adjudication_is_retryable_and_leaves_state_unchanged(faultline, direct_vm, direct_owner, wallets):
     case = submit_sealed_pipeline(faultline, direct_vm, direct_owner, wallets, "accepted")
-    document = case["charter_document"]
+    direct_vm.clear_mocks()
+    for filename in [case["charter_document"]]:
+        direct_vm.mock_web(rf".*{filename}$", {"response": {"status": 200, "headers": {}, "body": (EVIDENCE / filename).read_bytes()}, "method": "GET"})
+    missing_source = case["agents"][0]["evidence"]
+    for agent in case["agents"]:
+        for field in ("evidence", "artifact"):
+            filename = agent[field]
+            if filename == missing_source:
+                continue
+            direct_vm.mock_web(rf".*{filename}$", {"response": {"status": 200, "headers": {}, "body": (EVIDENCE / filename).read_bytes()}, "method": "GET"})
+    direct_vm.sender = direct_owner
+    with direct_vm.expect_revert("TRANSIENT"):
+        faultline.adjudicate(case["charter_id"], 1)
+    charter = json.loads(faultline.get_charter(case["charter_id"]))
+    attempt = json.loads(faultline.get_attempt(case["charter_id"], 1))
+    assert charter["state"] == "READY_FOR_REVIEW"
+    assert charter["accounting"]["escrow_locked_units"] == 100000
+    assert attempt["state"] == "READY_FOR_REVIEW"
+    assert attempt["basis"] == ""
+    assert attempt["tampered_sources"] == []
+
+
+def test_empty_http_200_with_changed_hash_is_evidence_tampering(faultline, direct_vm, direct_owner, wallets):
+    case = submit_sealed_pipeline(faultline, direct_vm, direct_owner, wallets, "accepted")
     research_evidence = case["agents"][0]["evidence"]
     direct_vm.clear_mocks()
-    direct_vm.mock_web(r".*charter-accepted\.html$", {"response": {"status": 200, "headers": {}, "body": (EVIDENCE / document).read_bytes()}, "method": "GET"})
-    direct_vm.mock_web(rf".*{research_evidence}$", {"response": {"status": 200, "headers": {}, "body": b""}, "method": "GET"})
+    register_fixture_mocks(direct_vm, case, {research_evidence: b""})
     direct_vm.sender = direct_owner
-    with direct_vm.expect_revert("empty evidence"):
-        faultline.adjudicate(case["charter_id"], 1)
-    assert json.loads(faultline.get_charter(case["charter_id"]))["state"] == "READY_FOR_REVIEW"
+    assert faultline.adjudicate(case["charter_id"], 1) == "BREACHED"
+    attempt = json.loads(faultline.get_attempt(case["charter_id"], 1))
+    assert attempt["basis"] == "EVIDENCE_TAMPERED"
+    assert attempt["tampered_sources"][0]["fetched_hash"] == hashlib.sha256(b"").hexdigest()
 
 
-def test_contradictory_evidence_is_available_to_the_judgment(faultline, direct_vm, direct_owner, wallets):
+def test_changed_evidence_settles_deterministic_breach_without_llm(faultline, direct_vm, direct_owner, wallets):
     case = submit_sealed_pipeline(faultline, direct_vm, direct_owner, wallets, "remediation")
     contradictory = (
         b"<main>Source card X says the observed count is 620. Source card Y says the same observed count is 418. "
@@ -220,20 +250,52 @@ def test_contradictory_evidence_is_available_to_the_judgment(faultline, direct_v
     )
     research_evidence = case["agents"][0]["evidence"]
     direct_vm.clear_mocks()
-    direct_vm.mock_web(r".*charter-remediation\.html$", {"response": {"status": 200, "headers": {}, "body": (EVIDENCE / case["charter_document"]).read_bytes()}, "method": "GET"})
-    direct_vm.mock_web(rf".*{research_evidence}$", {"response": {"status": 200, "headers": {}, "body": contradictory}, "method": "GET"})
-    for agent in case["agents"]:
-        if agent["agent_id"] == "AGENT-RESEARCH":
-            continue
-        for field in ("evidence", "artifact"):
-            name = agent[field]
-            direct_vm.mock_web(rf".*{name}$", {"response": {"status": 200, "headers": {}, "body": (EVIDENCE / name).read_bytes()}, "method": "GET"})
-    # The submitted hash is immutable, so a changed response is rejected before
-    # an LLM can turn the contradictory page into an accepted outcome.
+    register_fixture_mocks(direct_vm, case, {research_evidence: contradictory})
     direct_vm.sender = direct_owner
-    with direct_vm.expect_revert("content hash mismatch"):
-        faultline.adjudicate(case["charter_id"], 1)
-    assert json.loads(faultline.get_charter(case["charter_id"]))["accounting"]["escrow_locked_units"] == 100000
+    assert faultline.adjudicate(case["charter_id"], 1) == "BREACHED"
+    charter = json.loads(faultline.get_charter(case["charter_id"]))
+    attempt = json.loads(faultline.get_attempt(case["charter_id"], 1))
+    actual_hash = hashlib.sha256(contradictory).hexdigest()
+    assert attempt["basis"] == "EVIDENCE_TAMPERED"
+    assert attempt["tampered_sources"] == [{
+        "agent_id": "AGENT-RESEARCH", "source_kind": "EVIDENCE",
+        "url": url(research_evidence),
+        "submitted_hash": file_hash(research_evidence), "fetched_hash": actual_hash,
+    }]
+    assert attempt["violated_clause_ids"] == ["C1"]
+    assert [(row["agent_id"], row["role"]) for row in attempt["responsibility"]] == [
+        ("AGENT-RESEARCH", "PRIMARY"), ("AGENT-ANALYSIS", "CLEAR"), ("AGENT-DELIVERY", "CLEAR"),
+    ]
+    assert charter["state"] == "SETTLED_BREACHED"
+    assert charter["accounting"]["escrow_refunded_units"] == 100000
+    assert direct_vm.run_validator() is True
+
+
+def test_multiple_changed_sources_use_pipeline_order_for_roles(faultline, direct_vm, direct_owner, wallets):
+    case = submit_sealed_pipeline(faultline, direct_vm, direct_owner, wallets, "breached")
+    changed = {
+        case["agents"][0]["evidence"]: b"Research evidence changed after submission.",
+        case["agents"][2]["artifact"]: b"Delivery artifact changed after submission.",
+    }
+    direct_vm.clear_mocks()
+    filenames = [case["charter_document"]]
+    for agent in case["agents"]:
+        filenames.extend([agent["evidence"], agent["artifact"]])
+    for filename in filenames:
+        body = changed.get(filename, (EVIDENCE / filename).read_bytes())
+        direct_vm.mock_web(
+            rf".*{filename}$",
+            {"response": {"status": 200, "headers": {}, "body": body}, "method": "GET"},
+        )
+    direct_vm.sender = direct_owner
+    assert faultline.adjudicate(case["charter_id"], 1) == "BREACHED"
+    attempt = json.loads(faultline.get_attempt(case["charter_id"], 1))
+    assert attempt["basis"] == "EVIDENCE_TAMPERED"
+    assert attempt["violated_clause_ids"] == ["C1", "C3"]
+    assert [(row["agent_id"], row["role"]) for row in attempt["responsibility"]] == [
+        ("AGENT-RESEARCH", "PRIMARY"), ("AGENT-ANALYSIS", "CLEAR"), ("AGENT-DELIVERY", "CONTRIBUTING"),
+    ]
+    assert [source["agent_id"] for source in attempt["tampered_sources"]] == ["AGENT-RESEARCH", "AGENT-DELIVERY"]
 
 
 def test_repeated_terminal_adjudication_reverts(faultline, direct_vm, direct_owner, wallets):

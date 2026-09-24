@@ -60,12 +60,13 @@ def create_case(contract, vm, requester, agents, key="accepted", **overrides):
     return case
 
 
-def register_fixture_mocks(vm, case):
+def register_fixture_mocks(vm, case, overrides=None):
+    overrides = overrides or {}
     filenames = [case["charter_document"]]
     for agent in case["agents"]:
         filenames.extend([agent["evidence"], agent["artifact"]])
     for name in filenames:
-        raw = (EVIDENCE / name).read_bytes()
+        raw = overrides.get(name, (EVIDENCE / name).read_bytes())
         vm.mock_web(
             rf".*{re.escape(name)}$",
             {"response": {
@@ -115,6 +116,14 @@ def decision(outcome, violated=None, roles=None):
         "outcome": outcome,
         "violated_clause_ids": violated or [],
         "responsibility": roles or [],
+    }
+
+
+def assessment_result(value, basis="VALIDATOR_JUDGMENT", tampered_sources=None):
+    return {
+        "decision": value,
+        "basis": basis,
+        "tampered_sources": tampered_sources or [],
     }
 
 
