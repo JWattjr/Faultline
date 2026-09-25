@@ -429,7 +429,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .role--contributing { border-color: var(--ink); background: #f6e6b9; color: #69430f; }
 .role--clear { border-color: var(--ink); background: #dcefdc; color: #285b35; }
 .edge-pill { min-height: 28px; display: inline-flex; align-items: center; gap: 5px; border: 1.5px solid #285b35; border-radius: 999px; padding: 4px 7px; background: #dcefdc; color: #285b35; font-size: .59rem; }
-.edge-pill--failed { border-color: #8d2928; background: #f7ded6; color: #8d2928; }
 .edge-pill__mark { width: 15px; height: 15px; display: inline-grid; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: .62rem; font-weight: 600; }
 .edge-pill__mark svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .hash-mismatch { grid-column: 2 / 4; display: grid; gap: 5px; border: 2px solid #8d2928; border-radius: 12px; padding: 10px; background: #f7ded6; color: #762622; }

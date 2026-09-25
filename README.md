@@ -2,6 +2,8 @@
 
 Faultline is a GenLayer application for adjudicating a fixed three-agent pipeline against one sealed natural-language charter. It separates fetched source evidence, validator interpretation, consensus/finality, GenVM execution, and deterministic DEMO accounting.
 
+Handoffs that break the hash chain, deadline, or evidence-base rules are rejected at submission. Every recorded handoff was admitted under the charter's rules.
+
 This is an authorization prototype. It does not custody or transfer real assets. All four evidence cases and every DEMO accounting balance are synthetic. One fixture intentionally changes an agent's published evidence after submission to demonstrate deterministic evidence-tamper settlement.
 
 ## Requirements
@@ -18,7 +20,7 @@ npm run setup:python
 npm run check
 ```
 
-`check` runs fixture generation, contract lint and schema generation, direct tests, frontend lint, both TypeScript projects, a production build, and the local UI/responsive checks. It does not claim validator consensus. On this Windows setup, the direct-test harness currently hits 56 setup errors when GenLayer tries to decode empty stdin; live Studio Net proofs cover all four adjudication paths. Use `test:integration` for the separate full network run.
+`check` runs fixture generation, contract lint and schema generation, direct tests, frontend lint, both TypeScript projects, a production build, and the local UI/responsive checks. It does not claim validator consensus. Use `test:integration` for the separate full network run.
 
 ## Studio Net lifecycle
 
@@ -45,6 +47,10 @@ npm run deploy:frontend
 Transactions run sequentially. Deployment and seeding check both finality and successful execution, then read the contract state back before writing generated proof files. The Studio Net deployer and three agent keys are kept in the gitignored `.env`; scripts never print private keys. Do not use Bradbury.
 
 Seeding verifies that every hosted charter, evidence, and artifact page returns HTTPS 200 and matches its submitted SHA-256 hash, except for the single declared `FLT-TAMPER-001` evidence mismatch. That mismatch is required by the case: the manifest records both the originally submitted digest and the fetched digest. A self-hosted fixture is not independent third-party evidence.
+
+## Trust assumptions
+
+In this demo, all evidence is served from one host (the evidence base URL). Whoever controls that host could alter an agent's page. Tamper forfeitures therefore never go to the requester: slashed bond units go equally to CLEAR agents, with any remainder burned; if none are CLEAR, all are burned. In production, each agent should serve evidence from storage it controls or content-addressed storage (for example, IPFS), so a changed page can only be that agent's doing.
 
 Run the network integration flow separately when Studio Net is reachable and the evidence host is configured. It deploys a fresh temporary contract, runs all four proof cases sequentially, waits for finalized successful execution, and verifies fresh contract reads. It does not replace the seeded public contract:
 

@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   const contractAddress = (decoded?.contractAddress ?? (transaction.data as { contract_address?: string } | undefined)?.contract_address) as Hex | undefined;
   if (!contractAddress || !/^0x[\da-fA-F]{40}$/.test(contractAddress)) throw new Error("Deployment finalized, but Studio Net did not return a contract address.");
   const version = await readContract<{ version: string; runner: string }>(reader, contractAddress, "get_contract_version");
-  if (version.version !== "faultline/1.1.0" || !version.runner.includes(RUNNER)) throw new Error("Deployed contract version or runner does not match the source pin.");
+  if (version.version !== "faultline/1.2.0" || !version.runner.includes(RUNNER)) throw new Error("Deployed contract version or runner does not match the source pin.");
 
   const deployment: Deployment = {
     network: "studionet",

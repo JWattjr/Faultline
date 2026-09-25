@@ -3,25 +3,25 @@
   "chainId": 61999,
   "rpcUrl": "https://studio.genlayer.com/api",
   "explorerUrl": "https://explorer-studio.genlayer.com",
-  "contractAddress": "0x70B335af04A62e956856A4b5a3aDBEe1EbB5DF11",
+  "contractAddress": "0xbCC233eF24884386259259dc2e2acC8947761ed9",
   "deployTx": {
-    "hash": "0x64bca079a17de999f8bf67086b145d40132c39ae2a73e9ef19344d0a12d21c4b",
+    "hash": "0x3f2184fac07cae0ba2c12997d7fc454ce3bdb59c6891418b5938f53892942ecb",
     "statusName": "FINALIZED",
     "executionResultName": "FINISHED_WITH_RETURN",
     "successful": true,
     "resultName": "MAJORITY_AGREE",
-    "explorer": "https://explorer-studio.genlayer.com/tx/0x64bca079a17de999f8bf67086b145d40132c39ae2a73e9ef19344d0a12d21c4b",
+    "explorer": "https://explorer-studio.genlayer.com/tx/0x3f2184fac07cae0ba2c12997d7fc454ce3bdb59c6891418b5938f53892942ecb",
     "validators": 5,
     "votes": {
-      "0x03D58A4DeF6fDFc032A56374785a5F571D07Bc11": "agree",
-      "0x14402D49f317CE1a2F35BAE01b1804A2A9703dCb": "agree",
-      "0x3D83ab507785b95ca5C208bEc80CCe3D5ca98100": "agree",
-      "0x3E5ee2507cc167C9925Bf10c67D7986581112024": "agree",
-      "0x90402341F0B0e97b23023c0a87de957FB7148E0F": "agree"
+      "0x3D83ab507785b95ca5C208bEc80CCe3D5ca98100": "idle",
+      "0x5310dcF075E0BD47d29B8ec6581F736C767f54D2": "agree",
+      "0xBBb165E4c9d73a1493D363280f7067Cd07891dBE": "idle",
+      "0xcE1d6bBB36B744536153966B4DD42276f5ADd0F8": "agree",
+      "0xec2Fb79cd12255Eb34886CEd7332f27B98DEe658": "agree"
     }
   },
   "deployer": "0x16bB6408752ae17803C6F37B1d92776E97605A2b",
-  "deployedAt": "2026-09-24T19:49:01.399Z",
+  "deployedAt": "2026-09-25T16:33:26.363Z",
   "runner": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6",
   "fixtureBaseUrl": "https://faultline-sandy.vercel.app"
 }

@@ -5,7 +5,7 @@ import pytest
 from .conftest import EVIDENCE, set_tx_time
 from .helpers import (
     assessment_result, case_data, create_case, decision, file_hash, install_adjudication_mocks,
-    register_fixture_mocks, submit_pipeline, submit_sealed_pipeline, url,
+    register_fixture_mocks, seal_case, submit_pipeline, submit_sealed_pipeline, url,
     breach_roles,
 )
 
@@ -131,7 +131,11 @@ def test_breached_settlement_assigns_one_primary_and_credits_frozen_slashes(faul
         "AGENT-RESEARCH": 500, "AGENT-ANALYSIS": 750, "AGENT-DELIVERY": 1000,
     }
     assert charter["accounting"]["forfeiture_credited_units"] == 750
+    assert charter["accounting"]["forfeiture_credits"] == {}
+    assert charter["accounting"]["forfeiture_burned_units"] == 0
     assert receipt["accounting"]["forfeiture_beneficiary"] == "REQUESTER"
+    assert receipt["forfeiture_credits"] == {}
+    assert receipt["forfeiture_burned_units"] == 0
     assert receipt["receipt_hash"]
 
 
@@ -269,6 +273,51 @@ def test_changed_evidence_settles_deterministic_breach_without_llm(faultline, di
     assert charter["state"] == "SETTLED_BREACHED"
     assert charter["accounting"]["escrow_refunded_units"] == 100000
     assert direct_vm.run_validator() is True
+
+
+def test_tamper_forfeiture_is_split_between_clear_agents_with_remainder_burned(faultline, direct_vm, direct_owner, wallets):
+    case = create_case(faultline, direct_vm, direct_owner, wallets, "remediation", primary_slash_bps=5010)
+    seal_case(faultline, direct_vm, direct_owner, case)
+    submit_pipeline(faultline, direct_vm, case, wallets)
+    changed = {case["agents"][0]["evidence"]: b"Research evidence changed after submission."}
+    direct_vm.clear_mocks()
+    register_fixture_mocks(direct_vm, case, changed)
+    direct_vm.sender = direct_owner
+    assert faultline.adjudicate(case["charter_id"], 1) == "BREACHED"
+    charter = json.loads(faultline.get_charter(case["charter_id"]))
+    receipt = json.loads(faultline.get_receipt(case["charter_id"]))
+    accounting = charter["accounting"]
+    assert json.loads(faultline.get_attempt(case["charter_id"], 1))["basis"] == "EVIDENCE_TAMPERED"
+    assert accounting["bonds_slashed"]["AGENT-RESEARCH"] == 501
+    assert accounting["forfeiture_beneficiary"] == "CLEAR_AGENTS"
+    assert accounting["forfeiture_credits"] == {"AGENT-ANALYSIS": 250, "AGENT-DELIVERY": 250}
+    assert accounting["forfeiture_credited_units"] == 500
+    assert accounting["forfeiture_burned_units"] == 1
+    assert accounting["escrow_refunded_units"] == 100000
+    assert receipt["forfeiture_credits"] == accounting["forfeiture_credits"]
+    assert receipt["forfeiture_burned_units"] == 1
+    assert receipt["accounting"]["forfeiture_credits"] == accounting["forfeiture_credits"]
+
+
+def test_tamper_forfeiture_is_fully_burned_when_no_agent_is_clear(faultline, direct_vm, direct_owner, wallets):
+    case = submit_sealed_pipeline(faultline, direct_vm, direct_owner, wallets, "breached")
+    changed = {agent["evidence"]: f"Changed {agent['agent_id']} evidence".encode() for agent in case["agents"]}
+    direct_vm.clear_mocks()
+    register_fixture_mocks(direct_vm, case, changed)
+    direct_vm.sender = direct_owner
+    assert faultline.adjudicate(case["charter_id"], 1) == "BREACHED"
+    charter = json.loads(faultline.get_charter(case["charter_id"]))
+    receipt = json.loads(faultline.get_receipt(case["charter_id"]))
+    accounting = charter["accounting"]
+    assert json.loads(faultline.get_attempt(case["charter_id"], 1))["basis"] == "EVIDENCE_TAMPERED"
+    assert all(item["role"] != "CLEAR" for item in charter["responsibility"])
+    assert accounting["forfeiture_beneficiary"] == "BURNED"
+    assert accounting["forfeiture_credits"] == {}
+    assert accounting["forfeiture_credited_units"] == 0
+    assert accounting["forfeiture_burned_units"] == sum(accounting["bonds_slashed"].values())
+    assert accounting["escrow_refunded_units"] == 100000
+    assert receipt["forfeiture_credits"] == {}
+    assert receipt["forfeiture_burned_units"] == accounting["forfeiture_burned_units"]
 
 
 def test_multiple_changed_sources_use_pipeline_order_for_roles(faultline, direct_vm, direct_owner, wallets):

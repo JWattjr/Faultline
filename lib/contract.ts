@@ -24,7 +24,7 @@ export type EdgeCheck = {
   hash_chain_ok: boolean;
   on_time: boolean;
   inside_evidence_base: boolean;
-  status: "PASSED" | "FAILED";
+  status: "PASSED";
 };
 export type TamperedSource = {
   agent_id: string;
@@ -83,6 +83,8 @@ export type Charter = {
     bonds_slashed: Record<string, number>;
     forfeiture_credited_units: number;
     forfeiture_beneficiary: string;
+    forfeiture_credits: Record<string, number>;
+    forfeiture_burned_units: number;
   };
 };
 
@@ -108,6 +110,8 @@ export type Receipt = {
   outcome: string;
   receipt_hash: string;
   accounting: Charter["accounting"];
+  forfeiture_credits: Record<string, number>;
+  forfeiture_burned_units: number;
   finalized_at: number;
 } | Record<string, never>;
 

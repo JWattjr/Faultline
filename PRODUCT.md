@@ -33,7 +33,7 @@ The MVP is an authorization and settlement demonstration on GenLayer Studio Net,
 - Exactly three fixed slots: `RESEARCH`, `ANALYSIS`, and `DELIVERY`.
 - A requester-authored charter is sealed before pipeline evidence is submitted and cannot then be changed.
 - Ordered handoffs bind attempt numbers, output hashes, evidence URLs, and the previous output hash.
-- Each accepted handoff records edge checks for the output hash chain, submission time, and evidence-base URL. Validators independently retrieve the charter and submitted artifacts, reassess the clauses, normalize the result, and agree on outcome plus agent responsibility roles; clause-citation differences do not change that settlement comparison.
+- Handoffs that break the output hash chain, deadline, or evidence-base rules are rejected at submission. Every recorded handoff was admitted under the charter's rules. Validators independently retrieve the charter and submitted artifacts, reassess the clauses, normalize the result, and agree on outcome plus agent responsibility roles; clause-citation differences do not change that settlement comparison.
 - A fetched HTTP 200 agent evidence or artifact whose SHA-256 differs from its submitted digest deterministically settles as `BREACHED` with basis `EVIDENCE_TAMPERED`, outside the LLM judgment. The mismatched submitted and fetched hashes remain inspectable. Charter document mismatches and transient network/HTTP failures retain their strict/retryable behavior.
 - The contract owns lifecycle transitions and integer basis-point accounting. No real assets are held or transferred.
 - Every balance, reward, escrow, and bond is a simulated `DEMO` accounting unit.

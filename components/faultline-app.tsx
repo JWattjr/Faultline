@@ -142,8 +142,8 @@ function Mascot({ slot, decorative = false }: { slot: string; decorative?: boole
   </svg>;
 }
 
-function EdgeCheckMark({ passed }: { passed: boolean }) {
-  return <span className="edge-pill__mark" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false">{passed ? <path d="m3 8 3.1 3.2L13 4.7" /> : <><path d="M8 2.5v6" /><circle cx="8" cy="12" r=".7" /></>}</svg></span>;
+function EdgeCheckMark() {
+  return <span className="edge-pill__mark" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="m3 8 3.1 3.2L13 4.7" /></svg></span>;
 }
 
 function MetaCell({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
@@ -213,10 +213,7 @@ function TraceRow({
           {submittedAt ? <time dateTime={new Date(submittedAt * 1000).toISOString()}>{humanTime(submittedAt)}</time> : <span className="not-submitted">Fixture page</span>}
         </> : <span className="not-submitted">Awaiting {SLOT_LABELS[slot]?.toLowerCase()}</span>}
         <RoleTag role={role} expected={expected} />
-        {edgeCheck ? <span className={`edge-pill edge-pill--${edgeCheck.status.toLowerCase()}`} aria-label={`Handoff edge checks ${edgeCheck.status.toLowerCase()}`}>
-          <EdgeCheckMark passed={edgeCheck.status === "PASSED"} />
-          {edgeCheck.status === "PASSED" ? "Edge checks passed" : "Edge check failed"}
-        </span> : expected ? <span className="edge-pill edge-pill--passed"><EdgeCheckMark passed />Expected · edge checks passed</span> : null}
+        {edgeCheck ? <span className="edge-pill" aria-label="Admitted under charter rules"><EdgeCheckMark />Admitted under charter rules</span> : expected ? <span className="edge-pill"><EdgeCheckMark />Expected · admitted under charter rules</span> : null}
       </div>
       {tamperedSource ? <div className="hash-mismatch">
         <strong>Evidence changed after submission</strong>
@@ -513,7 +510,7 @@ export default function FaultlineApp() {
     };
   });
 
-  const edgeChecksAllPassed = traceRows.length === SLOT_ORDER.length && traceRows.every((row) => expected ? true : row.edgeCheck?.status === "PASSED");
+  const allHandoffsAdmitted = traceRows.length === SLOT_ORDER.length && traceRows.every((row) => expected || Boolean(row.edgeCheck));
   const assessmentBasis = liveRecord ? traceAttempt?.basis : preview ? fixture?.expected_basis : undefined;
   const totalBonds = agents.reduce((sum, agent) => sum + (Number.isFinite(agent.bond_units) ? agent.bond_units : 0), 0);
 
@@ -757,8 +754,8 @@ export default function FaultlineApp() {
                 tamperedSource={row.tamperedSource}
               />) : <div className="status-message" role="status"><span className="status-dot" aria-hidden="true" /><p>Three assigned agent slots will appear after the charter is read.</p></div>}
             </div>
-            {edgeChecksAllPassed ? <section className={`verdict-board verdict-board--${tone}`} aria-label="Handoff checks and responsibility">
-              <div className="verdict-board__head"><div><h3>{outcomeState === "BREACHED" ? "Every handoff passed its checks. The result is a breach." : "Every handoff passed its own checks."}</h3><p>Hash chain · submission time · evidence base</p></div><Stamp tone={tone}>{outcomeState}</Stamp></div>
+            {allHandoffsAdmitted ? <section className={`verdict-board verdict-board--${tone}`} aria-label="Handoff admission and responsibility">
+              <div className="verdict-board__head"><div><h3>{outcomeState === "BREACHED" ? "Every recorded handoff was admitted under charter rules. The result is a breach." : "Every recorded handoff was admitted under charter rules."}</h3><p>Hash chain · submission time · evidence base</p></div><Stamp tone={tone}>{outcomeState}</Stamp></div>
               <div className="role-rows" aria-label="Fixed responsibility roles; bar lengths do not represent percentages">
                 {traceRows.map((row) => <div className="role-row" key={`role-${row.agent.agent_id}`}><Mascot slot={row.agent.slot} decorative /><span className="role-row__name">{SLOT_LABELS[row.agent.slot]}</span><RoleTag role={row.role || "CLEAR"} expected={expected} /><span className={`role-bar role-bar--${(row.role || "CLEAR").toLowerCase()}`} aria-hidden="true"><i /></span></div>)}
               </div>
@@ -884,7 +881,7 @@ export default function FaultlineApp() {
             <div className="locked-table" aria-label="Frozen settlement defaults">
               <div><span>Escrow</span><strong>100,000 DEMO</strong></div><div><span>Reward split</span><strong>50 / 30 / 20%</strong></div><div><span>Agent bonds</span><strong>1,000 DEMO each</strong></div><div><span>Slash rates</span><strong>50 / 25 / 0%</strong></div>
             </div>
-            <p>Forfeited bonds go to the requester. The charter expires in seven days. Changing these defaults requires a new settlement version in code.</p>
+            <p>Validator-judged forfeitures go to the requester. Tamper forfeitures go to CLEAR agents or are burned. The charter expires in seven days. Changing these defaults requires a new settlement version in code.</p>
             <div className="form-actions"><button className="button" type="submit" disabled={!canPrepareWrites || panel.status === "preparing" || panel.status === "pending"}>Prepare charter draft</button><button className="button button--quiet" type="button" onClick={() => setShowCreateForm(false)}>Close</button></div>
           </form> : null}
 

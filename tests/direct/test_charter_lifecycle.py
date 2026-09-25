@@ -33,7 +33,7 @@ def assert_expired_accounting(record, case):
 def test_deployment_version_and_empty_stats(faultline):
     version = json.loads(faultline.get_contract_version())
     stats = json.loads(faultline.get_stats())
-    assert version["version"] == "faultline/1.1.0"
+    assert version["version"] == "faultline/1.2.0"
     assert version["runner"].endswith("1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6")
     assert version["accounting_unit"] == "DEMO"
     assert stats["total_charters"] == 0

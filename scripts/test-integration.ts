@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   const address = (decoded?.contractAddress ?? (transaction.data as { contract_address?: string } | undefined)?.contract_address) as Hex | undefined;
   if (!address || !/^0x[\da-fA-F]{40}$/.test(address)) throw new Error("Integration deployment did not return a contract address.");
   const version = await readContract<{ version: string }>(reader, address, "get_contract_version");
-  if (version.version !== "faultline/1.1.0") throw new Error(`Unexpected integration contract version: ${version.version}`);
+  if (version.version !== "faultline/1.2.0") throw new Error(`Unexpected integration contract version: ${version.version}`);
 
   const deployment: Deployment = {
     network: "studionet", chainId: CHAIN_ID, rpcUrl: RPC_URL, explorerUrl: EXPLORER_URL,

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from genlayer import *
 
-VERSION = "faultline/1.1.0"
+VERSION = "faultline/1.2.0"
 SETTLEMENT_VERSION = "faultline-settlement/1.0"
 DEMO_UNIT = "DEMO"
 
@@ -601,7 +601,8 @@ class Faultline(gl.Contract):
                 "escrow_released_units": 0, "escrow_refunded_units": 0,
                 "agent_bonds_locked_units": 0, "agent_rewards": {}, "bonds_returned": {},
                 "bonds_slashed": {}, "forfeiture_credited_units": 0,
-                "forfeiture_beneficiary": "REQUESTER",
+                "forfeiture_beneficiary": "REQUESTER", "forfeiture_credits": {},
+                "forfeiture_burned_units": 0,
             },
         }
         self._save_charter(record)
@@ -807,7 +808,7 @@ class Faultline(gl.Contract):
             }, sort_keys=True)
             self._set_state(record, "AWAITING_REMEDIATION")
         else:
-            self._settle_breached(record, decision)
+            self._settle_breached(record, decision, assessment["basis"])
             self._set_state(record, "SETTLED_BREACHED")
             receipt = self._make_receipt(record, attempt_number, decision)
             self.receipts[charter_id] = json.dumps(receipt, sort_keys=True)
@@ -829,7 +830,7 @@ class Faultline(gl.Contract):
             "forfeiture_credited_units": 0,
         })
 
-    def _settle_breached(self, record: dict, decision: dict) -> None:
+    def _settle_breached(self, record: dict, decision: dict, basis: str) -> None:
         roles = {item["agent_id"]: item["role"] for item in decision["responsibility"]}
         returned = {}
         slashed = {}
@@ -841,13 +842,27 @@ class Faultline(gl.Contract):
             slashed[agent["agent_id"]] = slash
             returned[agent["agent_id"]] = agent["bond_units"] - slash
             total_slashed += slash
+        clear_agents = [agent["agent_id"] for agent in record["agents"] if roles[agent["agent_id"]] == "CLEAR"]
+        if basis == "EVIDENCE_TAMPERED":
+            share = total_slashed // len(clear_agents) if clear_agents else 0
+            forfeiture_credits = {agent_id: share for agent_id in clear_agents}
+            forfeiture_burned_units = total_slashed - share * len(clear_agents)
+            forfeiture_beneficiary = "CLEAR_AGENTS" if clear_agents else "BURNED"
+            forfeiture_credited_units = total_slashed - forfeiture_burned_units
+        else:
+            forfeiture_credits = {}
+            forfeiture_burned_units = 0
+            forfeiture_beneficiary = record["forfeiture_beneficiary"]
+            forfeiture_credited_units = total_slashed
         record["accounting"].update({
             "escrow_status": "REFUNDED_DEMO", "escrow_locked_units": 0,
             "escrow_released_units": 0, "escrow_refunded_units": record["escrow_units"],
             "agent_bonds_locked_units": 0, "agent_rewards": {agent_id: 0 for agent_id in AGENT_IDS},
             "bonds_returned": returned, "bonds_slashed": slashed,
-            "forfeiture_credited_units": total_slashed,
-            "forfeiture_beneficiary": record["forfeiture_beneficiary"],
+            "forfeiture_credited_units": forfeiture_credited_units,
+            "forfeiture_beneficiary": forfeiture_beneficiary,
+            "forfeiture_credits": forfeiture_credits,
+            "forfeiture_burned_units": forfeiture_burned_units,
         })
 
     def _make_receipt(self, record: dict, attempt_number: int, decision: dict) -> dict:
@@ -859,6 +874,8 @@ class Faultline(gl.Contract):
             "reward_bps": {agent["agent_id"]: agent["reward_bps"] for agent in record["agents"]},
             "slash_rates_bps": {"PRIMARY": record["primary_slash_bps"], "CONTRIBUTING": record["contributing_slash_bps"], "CLEAR": 0},
             "agents": record["agents"], "accounting": record["accounting"],
+            "forfeiture_credits": record["accounting"]["forfeiture_credits"],
+            "forfeiture_burned_units": record["accounting"]["forfeiture_burned_units"],
             "evidence_hashes": {
                 agent_id: json.loads(self.handoffs[self._handoff_key(record["charter_id"], attempt_number, agent_id)])["evidence_hash"]
                 for agent_id in AGENT_IDS
